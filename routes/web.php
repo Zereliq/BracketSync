@@ -4,18 +4,19 @@ use App\Http\Controllers\Admin\TournamentAdminController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Auth\OsuLoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\PublicTournamentController;
+use App\Http\Controllers\QualifiersController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TeamManagementController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentPlayersController;
+use App\Http\Controllers\TournamentQualifiersController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('homepage');
-})->name('homepage');
+Route::get('/', [HomeController::class, 'index'])->name('homepage');
 
 // Osu! authentication routes
 Route::get('/auth/osu/redirect', [OsuLoginController::class, 'redirectToProvider'])->name('auth.osu.redirect');
@@ -40,6 +41,9 @@ Route::prefix('tournaments')->name('tournaments.')->group(function () {
     Route::delete('/{tournament}/players/signup', [TournamentPlayersController::class, 'withdrawPublic'])->name('players.withdraw');
     Route::get('/{tournament}/teams', [PublicTournamentController::class, 'teams'])->name('teams');
     Route::get('/{tournament}/qualifiers', [PublicTournamentController::class, 'qualifiers'])->name('qualifiers');
+    Route::post('/{tournament}/qualifiers/reserve/{slot}', [QualifiersController::class, 'reserve'])->name('qualifiers.reserve');
+    Route::post('/{tournament}/qualifiers/suggest', [QualifiersController::class, 'suggest'])->name('qualifiers.suggest');
+    Route::delete('/{tournament}/qualifiers/cancel/{reservation}', [QualifiersController::class, 'cancel'])->name('qualifiers.cancel');
     Route::get('/{tournament}/matches', [PublicTournamentController::class, 'matches'])->name('matches');
     Route::get('/{tournament}/mappools', [PublicTournamentController::class, 'mappools'])->name('mappools');
 });
@@ -66,6 +70,14 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::get('/players', [TournamentPlayersController::class, 'showDashboard'])->name('players');
         Route::get('/teams', [TournamentController::class, 'teams'])->name('teams');
         Route::get('/qualifiers', [TournamentController::class, 'qualifiers'])->name('qualifiers');
+        Route::post('/qualifiers/settings', [TournamentQualifiersController::class, 'updateSettings'])->name('qualifiers.settings.update');
+        Route::post('/qualifiers/slots', [TournamentQualifiersController::class, 'storeSlot'])->name('qualifiers.slots.store');
+        Route::patch('/qualifiers/slots/{slot}', [TournamentQualifiersController::class, 'updateSlot'])->name('qualifiers.slots.update');
+        Route::delete('/qualifiers/slots/{slot}', [TournamentQualifiersController::class, 'destroySlot'])->name('qualifiers.slots.destroy');
+        Route::post('/qualifiers/suggestions/{reservation}/accept', [TournamentQualifiersController::class, 'acceptSuggestion'])->name('qualifiers.suggestions.accept');
+        Route::post('/qualifiers/suggestions/{reservation}/referee-accept', [TournamentQualifiersController::class, 'refereeAcceptSuggestion'])->name('qualifiers.suggestions.referee-accept');
+        Route::post('/qualifiers/suggestions/{reservation}/deny', [TournamentQualifiersController::class, 'denySuggestion'])->name('qualifiers.suggestions.deny');
+        Route::get('/qualifiers/search-users', [TournamentQualifiersController::class, 'searchUsers'])->name('qualifiers.search-users');
         Route::get('/matches', [TournamentController::class, 'matches'])->name('matches');
         Route::get('/mappools', [TournamentController::class, 'mappools'])->name('mappools');
     });
@@ -98,6 +110,7 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
 
     // Support Tickets routes
     Route::resource('tickets', TicketController::class);
+    Route::post('/tickets/{ticket}/replies', [TicketController::class, 'storeReply'])->name('tickets.replies.store');
 });
 
 // Admin routes (protected by auth and admin gate)

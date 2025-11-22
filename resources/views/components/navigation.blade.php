@@ -8,7 +8,6 @@
                 <div class="hidden md:flex items-center space-x-6">
                     <a href="#tournaments" class="text-slate-300 hover:text-pink-500 transition-colors">Tournaments</a>
                     <a href="#matches" class="text-slate-300 hover:text-pink-500 transition-colors">Matches</a>
-                    <a href="#teams" class="text-slate-300 hover:text-pink-500 transition-colors">Teams</a>
                     <a href="dashboard" class="text-slate-300 hover:text-pink-500 transition-colors">Dashboard</a>
                 </div>
             </div>
@@ -43,7 +42,6 @@
         <div id="mobile-menu" class="hidden md:hidden pt-4 pb-2 space-y-3">
             <a href="#tournaments" class="block text-slate-300 hover:text-pink-500 transition-colors py-2">Tournaments</a>
             <a href="#matches" class="block text-slate-300 hover:text-pink-500 transition-colors py-2">Matches</a>
-            <a href="#teams" class="block text-slate-300 hover:text-pink-500 transition-colors py-2">Teams</a>
             <a href="#dashboard" class="block text-slate-300 hover:text-pink-500 transition-colors py-2">Dashboard</a>
             @auth
                 <div class="flex items-center space-x-3 px-4 py-2 bg-slate-800 rounded-lg border border-slate-700">

@@ -1,3 +1,35 @@
+@php
+    $statusColors = [
+        'draft' => ['bg' => 'bg-slate-500/20', 'text' => 'text-slate-400', 'border' => 'border-slate-500/30'],
+        'announced' => ['bg' => 'bg-blue-500/20', 'text' => 'text-blue-400', 'border' => 'border-blue-500/30'],
+        'ongoing' => ['bg' => 'bg-green-500/20', 'text' => 'text-green-400', 'border' => 'border-green-500/30'],
+        'finished' => ['bg' => 'bg-slate-500/20', 'text' => 'text-slate-400', 'border' => 'border-slate-500/30'],
+    ];
+
+    $modeLabels = [
+        'osu' => 'osu! standard',
+        'taiko' => 'osu!taiko',
+        'catch' => 'osu!catch',
+        'mania' => 'osu!mania',
+    ];
+
+    $elimTypeLabels = [
+        'single' => 'Single Elim',
+        'double' => 'Double Elim',
+    ];
+
+    $stageLabels = [
+        'draft' => 'In draft',
+        'announced' => 'Announced',
+        'registration' => 'Registration open',
+        'screening' => 'Screening players',
+        'qualifiers' => 'Qualifiers in progress',
+        'bracket' => 'Bracket stage',
+        'finished' => 'Tournament finished',
+        'archived' => 'Archived',
+    ];
+@endphp
+
 <section id="tournaments" class="py-16 bg-slate-900/50">
     <div class="max-w-6xl mx-auto px-4">
         <div class="flex items-center justify-between mb-10">
@@ -7,179 +39,53 @@
             </div>
         </div>
         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">BracketSync Cup 2025</h3>
-                        <p class="text-sm text-slate-400 mt-1">BFC #1</p>
+            @forelse($tournaments as $tournament)
+                @php
+                    $statusColor = $statusColors[$tournament->status] ?? ['bg' => 'bg-slate-500/20', 'text' => 'text-slate-400', 'border' => 'border-slate-500/30'];
+                    $stage = $tournament->getCurrentStage();
+                @endphp
+                <a href="{{ route('tournaments.show', $tournament) }}" class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all block">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-white">{{ $tournament->name }}</h3>
+                            @if($tournament->abbreviation)
+                                <p class="text-sm text-slate-400 mt-1">{{ $tournament->abbreviation }}</p>
+                            @endif
+                        </div>
+                        <span class="px-3 py-1 {{ $statusColor['bg'] }} {{ $statusColor['text'] }} text-xs font-medium rounded-full border {{ $statusColor['border'] }}">
+                            {{ ucfirst($tournament->status) }}
+                        </span>
                     </div>
-                    <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">
-                        Ongoing
-                    </span>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">Mode</span>
+                            <span class="text-slate-200 font-medium">{{ $modeLabels[$tournament->mode] ?? ucfirst($tournament->mode) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">Format</span>
+                            <span class="text-slate-200 font-medium">{{ $tournament->getFormattedTeamSize() }}, {{ $elimTypeLabels[$tournament->elim_type] ?? ucfirst($tournament->elim_type) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">{{ $tournament->isTeamTournament() ? 'Teams' : 'Players' }}</span>
+                            <span class="text-slate-200 font-medium">
+                                @if($tournament->isTeamTournament())
+                                    {{ $tournament->teams_count ?? 0 }}@if($tournament->bracket_size) / {{ $tournament->bracket_size }}@endif
+                                @else
+                                    {{ $tournament->registered_players_count ?? 0 }}@if($tournament->bracket_size) / {{ $tournament->bracket_size }}@endif
+                                @endif
+                            </span>
+                        </div>
+                        <div class="pt-3 border-t border-slate-800">
+                            <p class="text-slate-400 text-xs">{{ $stageLabels[$stage] ?? ucfirst($stage) }}</p>
+                        </div>
+                    </div>
+                </a>
+            @empty
+                <div class="col-span-full text-center py-12">
+                    <p class="text-slate-400">No active tournaments at the moment</p>
+                    <p class="text-sm text-slate-500 mt-2">Check back soon for new tournaments!</p>
                 </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu! standard</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">2v2, Double Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Teams</span>
-                        <span class="text-slate-200 font-medium">32 / 32</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Quarterfinals in progress</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Taiko Masters Spring</h3>
-                        <p class="text-sm text-slate-400 mt-1">TMS 2025</p>
-                    </div>
-                    <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full border border-blue-500/30">
-                        Registration Open
-                    </span>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu!taiko</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">1v1, Single Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Players</span>
-                        <span class="text-slate-200 font-medium">48 / 64</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Registration closes April 15, 2025</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Catch The Beat Invitational</h3>
-                        <p class="text-sm text-slate-400 mt-1">CTB INV</p>
-                    </div>
-                    <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">
-                        Ongoing
-                    </span>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu!catch</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">3v3, Double Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Teams</span>
-                        <span class="text-slate-200 font-medium">16 / 16</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Round of 16 starts tomorrow</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Mania Championship Q1</h3>
-                        <p class="text-sm text-slate-400 mt-1">MC Q1 2025</p>
-                    </div>
-                    <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full border border-blue-500/30">
-                        Registration Open
-                    </span>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu!mania 4K</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">1v1, Double Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Players</span>
-                        <span class="text-slate-200 font-medium">72 / 128</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Registration closes April 20, 2025</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Standard World Series</h3>
-                        <p class="text-sm text-slate-400 mt-1">SWS 2025</p>
-                    </div>
-                    <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">
-                        Ongoing
-                    </span>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu! standard</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">4v4, Double Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Teams</span>
-                        <span class="text-slate-200 font-medium">24 / 24</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Semifinals this weekend</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-6 hover:border-pink-500/50 transition-all">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Rising Stars Tournament</h3>
-                        <p class="text-sm text-slate-400 mt-1">RST 2025</p>
-                    </div>
-                    <span class="px-3 py-1 bg-slate-500/20 text-slate-400 text-xs font-medium rounded-full border border-slate-500/30">
-                        Finished
-                    </span>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Mode</span>
-                        <span class="text-slate-200 font-medium">osu! standard</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Format</span>
-                        <span class="text-slate-200 font-medium">1v1, Single Elim</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-slate-500">Players</span>
-                        <span class="text-slate-200 font-medium">64 / 64</span>
-                    </div>
-                    <div class="pt-3 border-t border-slate-800">
-                        <p class="text-slate-400 text-xs">Winner: Rhythm Rebels</p>
-                    </div>
-                </div>
-            </div>
+            @endforelse
         </div>
         <div class="mt-8 text-center">
             <a href="{{ route('tournaments.index') }}" class="inline-flex items-center px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors border border-slate-700">

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreTicketRequest;
 use App\Http\Requests\UpdateTicketRequest;
 use App\Models\Ticket;
+use App\Models\TicketReply;
+use App\Notifications\TicketReplyNotification;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
@@ -54,7 +56,7 @@ class TicketController extends Controller
     {
         $this->authorize('view', $ticket);
 
-        $ticket->load(['user', 'assignedTo', 'resolvedBy']);
+        $ticket->load(['user', 'assignedTo', 'resolvedBy', 'replies.user']);
 
         return view('tickets.show', compact('ticket'));
     }
@@ -95,5 +97,49 @@ class TicketController extends Controller
         return redirect()
             ->route('dashboard.tickets.index')
             ->with('success', 'Ticket deleted successfully.');
+    }
+
+    public function storeReply(Request $request, Ticket $ticket)
+    {
+        $this->authorize('view', $ticket);
+
+        $user = auth()->user();
+
+        // Only allow admins/mods to reply, or the ticket owner to reply to their own ticket
+        if (! $user->isAdmin() && ! $user->isMod() && $ticket->user_id !== $user->id) {
+            abort(403, 'You do not have permission to reply to this ticket.');
+        }
+
+        $validated = $request->validate([
+            'message' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $reply = TicketReply::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => $user->id,
+            'message' => $validated['message'],
+            'is_staff_reply' => $user->isAdmin() || $user->isMod(),
+        ]);
+
+        // Send notification to the ticket owner if a staff member replied
+        if ($reply->is_staff_reply && $ticket->user_id !== $user->id) {
+            $ticket->user->notify(new TicketReplyNotification($reply));
+        }
+
+        // Send notification to all staff members who have replied if the ticket owner replied
+        if (! $reply->is_staff_reply) {
+            $staffReplies = $ticket->replies()
+                ->where('is_staff_reply', true)
+                ->where('user_id', '!=', $user->id)
+                ->get();
+
+            foreach ($staffReplies->unique('user_id') as $staffReply) {
+                $staffReply->user->notify(new TicketReplyNotification($reply));
+            }
+        }
+
+        return redirect()
+            ->route('dashboard.tickets.show', $ticket)
+            ->with('success', 'Reply added successfully.');
     }
 }

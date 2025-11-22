@@ -3,7 +3,7 @@
 @section('title', 'Dashboard - BracketSync')
 
 @section('content')
-<div class="space-y-6">
+<div x-data="tournamentFilters()" class="space-y-6">
     <div>
         <h1 class="text-3xl font-bold text-white mb-2">Dashboard</h1>
         <p class="text-slate-400">Welcome back, {{ auth()->user()->name }}</p>
@@ -56,10 +56,92 @@
         </div>
     </div>
 
+    <!-- Filters -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <h2 class="text-lg font-semibold text-white mb-4">Filter Tournaments</h2>
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Mode Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Mode</label>
+                <select x-model="filters.mode" @change="applyFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-pink-500 focus:outline-none">
+                    <option value="">All Modes</option>
+                    <option value="standard">osu! standard</option>
+                    <option value="taiko">osu!taiko</option>
+                    <option value="fruits">osu!catch</option>
+                    <option value="mania">osu!mania</option>
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Status</label>
+                <select x-model="filters.status" @change="applyFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-pink-500 focus:outline-none">
+                    <option value="">All Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="finished">Finished</option>
+                    <option value="archived">Archived</option>
+                </select>
+            </div>
+
+            <!-- Team Size Filter -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Format</label>
+                <select x-model="filters.team_size" @change="applyFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-pink-500 focus:outline-none">
+                    <option value="">All Formats</option>
+                    <option value="solo">Solo (1v1)</option>
+                    <option value="team">Team</option>
+                </select>
+            </div>
+
+            <!-- Sort By -->
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Sort By</label>
+                <select x-model="filters.sort" @change="applyFilters()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-pink-500 focus:outline-none">
+                    <option value="recent">Most Recent</option>
+                    <option value="name">Name</option>
+                    <option value="signup_start">Starting Soon</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Quick Filters -->
+        <div class="mt-4 flex flex-wrap gap-3">
+            <button
+                @click="toggleFilter('created')"
+                :class="filters.created ? 'bg-pink-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700"
+            >
+                My Created Tournaments
+            </button>
+            <button
+                @click="toggleFilter('staff')"
+                :class="filters.staff ? 'bg-pink-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700"
+            >
+                Staff Tournaments
+            </button>
+            <button
+                @click="toggleFilter('registered')"
+                :class="filters.registered ? 'bg-pink-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700"
+            >
+                Registered as Player
+            </button>
+            <button
+                @click="clearFilters()"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
+            >
+                Clear Filters
+            </button>
+        </div>
+    </div>
+
     <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-800">
             <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-white">Recent Tournaments</h2>
+                <h2 class="text-xl font-bold text-white">My Tournaments</h2>
                 <a href="{{ route('dashboard.tournaments.create') }}" class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors">
                     Create Tournament
                 </a>
@@ -239,4 +321,43 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+function tournamentFilters() {
+    return {
+        filters: {
+            mode: new URLSearchParams(window.location.search).get('mode') || '',
+            status: new URLSearchParams(window.location.search).get('status') || '',
+            team_size: new URLSearchParams(window.location.search).get('team_size') || '',
+            sort: new URLSearchParams(window.location.search).get('sort') || 'recent',
+            created: new URLSearchParams(window.location.search).get('created') === 'true',
+            staff: new URLSearchParams(window.location.search).get('staff') === 'true',
+            registered: new URLSearchParams(window.location.search).get('registered') === 'true'
+        },
+
+        applyFilters() {
+            const params = new URLSearchParams();
+
+            Object.keys(this.filters).forEach(key => {
+                if (this.filters[key] && this.filters[key] !== '') {
+                    params.set(key, this.filters[key]);
+                }
+            });
+
+            window.location.search = params.toString();
+        },
+
+        toggleFilter(filterName) {
+            this.filters[filterName] = !this.filters[filterName];
+            this.applyFilters();
+        },
+
+        clearFilters() {
+            window.location.href = window.location.pathname;
+        }
+    }
+}
+</script>
+@endpush
 @endsection

@@ -42,4 +42,9 @@ class Ticket extends Model
     {
         return $this->belongsTo(User::class, 'resolved_by');
     }
+
+    public function replies()
+    {
+        return $this->hasMany(TicketReply::class);
+    }
 }

@@ -186,66 +186,79 @@
                 <p class="text-slate-500">No players have registered for this tournament yet.</p>
             </div>
         @else
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 @foreach($registeredPlayers as $registration)
                     @php
                         $player = $registration->user;
                     @endphp
-                    <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-pink-500/30 transition-colors">
-                        <div class="flex items-center space-x-3 flex-1 min-w-0">
-                            @if($player->avatar_url)
-                                <img src="{{ $player->avatar_url }}" alt="{{ $player->name }}" class="w-14 h-14 rounded-full border-2 border-slate-700">
-                            @else
-                                <div class="w-14 h-14 rounded-full bg-slate-700 flex items-center justify-center">
-                                    <span class="text-slate-300 text-lg font-medium">{{ substr($player->name, 0, 1) }}</span>
-                                </div>
-                            @endif
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center space-x-2">
-                                    <p class="text-white font-semibold truncate text-lg">{{ $player->name }}</p>
-                                    @if($isTeamTournament && $registration->looking_for_team)
-                                        <span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs font-medium rounded border border-blue-500/30 whitespace-nowrap">
-                                            Looking for Team
-                                        </span>
-                                    @endif
-                                </div>
-                                <div class="flex items-center space-x-3 mt-1 text-xs text-slate-400">
-                                    @if($player->country_code)
-                                        <div class="flex items-center space-x-1">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
-                                            </svg>
-                                            <span class="uppercase font-medium">{{ $player->country_code }}</span>
-                                        </div>
-                                    @endif
-                                    @if($player->rank)
-                                        <div class="flex items-center space-x-1">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                                            </svg>
-                                            <span class="font-medium">#{{ number_format($player->rank) }}</span>
-                                        </div>
-                                    @endif
-                                    @if($player->pp)
-                                        <div class="flex items-center space-x-1">
-                                            <span class="font-medium">{{ number_format($player->pp) }}pp</span>
-                                        </div>
-                                    @endif
-                                    @if($player->hit_accuracy)
-                                        <div class="flex items-center space-x-1">
-                                            <span class="font-medium">{{ number_format($player->hit_accuracy, 2) }}%</span>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
+                    <div class="relative group bg-slate-800/50 rounded-lg border border-slate-700 hover:border-pink-500/50 transition-all hover:shadow-lg hover:shadow-pink-500/10 overflow-hidden">
                         @if($canEdit)
-                            <button type="button" class="text-slate-400 hover:text-red-400 transition-colors ml-3" title="Remove player">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" class="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 bg-slate-900/90 hover:bg-red-600 text-slate-400 hover:text-white rounded-full p-1.5 transition-all" title="Remove player">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                 </svg>
                             </button>
                         @endif
+
+                        <div class="p-4 flex flex-col items-center text-center">
+                            {{-- Avatar --}}
+                            @if($player->avatar_url)
+                                <img src="{{ $player->avatar_url }}" alt="{{ $player->name }}" class="w-20 h-20 rounded-full border-2 border-slate-700 group-hover:border-pink-500/50 transition-colors mb-3">
+                            @else
+                                <div class="w-20 h-20 rounded-full bg-slate-700 group-hover:bg-slate-600 flex items-center justify-center border-2 border-slate-700 group-hover:border-pink-500/50 transition-all mb-3">
+                                    <span class="text-slate-300 text-2xl font-medium">{{ substr($player->name, 0, 1) }}</span>
+                                </div>
+                            @endif
+
+                            {{-- Player Name --}}
+                            <h3 class="text-white font-semibold text-sm mb-2 truncate w-full px-1">{{ $player->name }}</h3>
+
+                            {{-- Country Code --}}
+                            @if($player->country_code)
+                                <div class="inline-flex items-center px-2 py-0.5 bg-slate-700/50 rounded text-xs text-slate-300 font-medium mb-3">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                                    </svg>
+                                    <span class="uppercase">{{ $player->country_code }}</span>
+                                </div>
+                            @endif
+
+                            {{-- Stats Grid --}}
+                            @if($player->rank || $player->pp || $player->hit_accuracy)
+                                <div class="w-full space-y-2 border-t border-slate-700/50 pt-3">
+                                    @if($player->rank)
+                                        <div class="flex items-center justify-between px-2">
+                                            <span class="text-xs text-slate-400">Rank</span>
+                                            <span class="text-sm font-semibold text-pink-400">#{{ number_format($player->rank) }}</span>
+                                        </div>
+                                    @endif
+                                    @if($player->pp)
+                                        <div class="flex items-center justify-between px-2">
+                                            <span class="text-xs text-slate-400">PP</span>
+                                            <span class="text-sm font-semibold text-purple-400">{{ number_format($player->pp) }}</span>
+                                        </div>
+                                    @endif
+                                    @if($player->hit_accuracy)
+                                        <div class="flex items-center justify-between px-2">
+                                            <span class="text-xs text-slate-400">Accuracy</span>
+                                            <span class="text-sm font-semibold text-blue-400">{{ number_format($player->hit_accuracy, 2) }}%</span>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+
+                            {{-- Looking for Team Badge --}}
+                            @if($isTeamTournament && $registration->looking_for_team)
+                                <div class="mt-3 w-full">
+                                    <span class="inline-flex items-center px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded border border-blue-500/30">
+                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                        </svg>
+                                        Looking for Team
+                                    </span>
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 @endforeach
             </div>

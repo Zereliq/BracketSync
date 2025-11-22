@@ -417,6 +417,19 @@ class TournamentController extends Controller
                 ->with('error', 'This user already has this role in the tournament.');
         }
 
+        // If inviting yourself, add directly to staff without invitation
+        if ($user->id === auth()->id()) {
+            TournamentRoleUser::create([
+                'tournament_id' => $tournament->id,
+                'user_id' => $user->id,
+                'role_id' => request('role_id'),
+            ]);
+
+            return redirect()
+                ->route('dashboard.tournaments.staff', $tournament)
+                ->with('success', 'You have been added to the tournament staff!');
+        }
+
         // Check if there's already a pending invitation
         $pendingInvitation = \App\Models\StaffInvitation::where('tournament_id', $tournament->id)
             ->where('user_id', $user->id)
@@ -503,22 +516,16 @@ class TournamentController extends Controller
     public function acceptStaffInvitation(\App\Models\StaffInvitation $invitation): mixed
     {
         if ($invitation->user_id !== auth()->id()) {
-            return redirect()
-                ->route('dashboard.index')
-                ->with('error', 'This invitation is not for you.');
+            return back()->with('error', 'This invitation is not for you.');
         }
 
         if (! $invitation->isPending()) {
-            return redirect()
-                ->route('dashboard.index')
-                ->with('error', 'This invitation has already been processed.');
+            return back()->with('error', 'This invitation has already been processed.');
         }
 
         $invitation->accept();
 
-        return redirect()
-            ->route('dashboard.index')
-            ->with('success', 'Staff invitation accepted! You are now part of the tournament staff.');
+        return back()->with('success', 'Staff invitation accepted! You are now part of the tournament staff.');
     }
 
     /**
@@ -527,21 +534,15 @@ class TournamentController extends Controller
     public function declineStaffInvitation(\App\Models\StaffInvitation $invitation): mixed
     {
         if ($invitation->user_id !== auth()->id()) {
-            return redirect()
-                ->route('dashboard.index')
-                ->with('error', 'This invitation is not for you.');
+            return back()->with('error', 'This invitation is not for you.');
         }
 
         if (! $invitation->isPending()) {
-            return redirect()
-                ->route('dashboard.index')
-                ->with('error', 'This invitation has already been processed.');
+            return back()->with('error', 'This invitation has already been processed.');
         }
 
         $invitation->decline();
 
-        return redirect()
-            ->route('dashboard.index')
-            ->with('success', 'Staff invitation declined.');
+        return back()->with('success', 'Staff invitation declined.');
     }
 }

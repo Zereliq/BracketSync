@@ -30,6 +30,79 @@
                 <h2 class="text-xl font-bold text-white mb-4">Description</h2>
                 <p class="text-slate-300 whitespace-pre-wrap">{{ $ticket->description }}</p>
             </div>
+
+            {{-- Replies Section --}}
+            @if($ticket->replies->count() > 0)
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <h2 class="text-xl font-bold text-white mb-4">Replies ({{ $ticket->replies->count() }})</h2>
+                    <div class="space-y-4">
+                        @foreach($ticket->replies as $reply)
+                            <div class="border border-slate-700 rounded-lg p-4
+                                @if($reply->is_staff_reply) bg-blue-500/5 border-blue-500/30 @else bg-slate-800/30 @endif">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex items-center space-x-3">
+                                        @if($reply->user->avatar_url)
+                                            <img src="{{ $reply->user->avatar_url }}" alt="{{ $reply->user->name }}" class="w-8 h-8 rounded-full">
+                                        @else
+                                            <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                                                <span class="text-slate-300 text-sm font-medium">{{ substr($reply->user->name, 0, 1) }}</span>
+                                            </div>
+                                        @endif
+                                        <div>
+                                            <p class="text-white font-semibold">{{ $reply->user->name }}</p>
+                                            @if($reply->is_staff_reply)
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                                    </svg>
+                                                    Staff
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <span class="text-xs text-slate-500">{{ $reply->created_at->diffForHumans() }}</span>
+                                </div>
+                                <p class="text-slate-300 whitespace-pre-wrap ml-11">{{ $reply->message }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            {{-- Reply Form --}}
+            @if(auth()->user()->isAdmin() || auth()->user()->isMod() || $ticket->user_id === auth()->id())
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <h2 class="text-xl font-bold text-white mb-4">
+                        @if(auth()->user()->isAdmin() || auth()->user()->isMod())
+                            Reply to Ticket
+                        @else
+                            Add Response
+                        @endif
+                    </h2>
+                    <form action="{{ route('dashboard.tickets.replies.store', $ticket) }}" method="POST">
+                        @csrf
+                        <div class="mb-4">
+                            <label for="message" class="block text-sm font-medium text-slate-300 mb-2">Message</label>
+                            <textarea
+                                name="message"
+                                id="message"
+                                rows="5"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-pink-500 focus:outline-none @error('message') border-red-500 @enderror"
+                                placeholder="Write your reply..."
+                                required
+                            >{{ old('message') }}</textarea>
+                            @error('message')
+                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-2 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors">
+                                Send Reply
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            @endif
         </div>
 
         <div class="space-y-6">

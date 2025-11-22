@@ -193,7 +193,7 @@ class TournamentPlayersController extends Controller
             return 'Signups are not open right now.';
         }
 
-        if (! in_array($tournament->status, ['draft', 'published'])) {
+        if (! in_array($tournament->status, ['draft', 'announced'])) {
             return 'Signups are closed for this tournament.';
         }
 

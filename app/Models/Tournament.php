@@ -22,6 +22,11 @@ class Tournament extends Model
         'min_teamsize',
         'max_teamsize',
         'has_qualifiers',
+        'is_badged',
+        'qualifier_mode',
+        'qualifiers_required_referee',
+        'qualifiers_slot_length_minutes',
+        'qualifiers_signup_deadline',
         'seeding_type',
         'win_condition',
         'signup_method',
@@ -38,15 +43,21 @@ class Tournament extends Model
         'created_by',
     ];
 
-    protected $casts = [
-        'qualifier_results_public' => 'boolean',
-        'has_qualifiers' => 'boolean',
-        'auto_bracket_size' => 'boolean',
-        'staff_can_play' => 'boolean',
-        'country_list' => 'array',
-        'signup_start' => 'datetime',
-        'signup_end' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'qualifier_results_public' => 'boolean',
+            'has_qualifiers' => 'boolean',
+            'is_badged' => 'boolean',
+            'qualifiers_required_referee' => 'boolean',
+            'auto_bracket_size' => 'boolean',
+            'staff_can_play' => 'boolean',
+            'country_list' => 'array',
+            'signup_start' => 'datetime',
+            'signup_end' => 'datetime',
+            'qualifiers_signup_deadline' => 'datetime',
+        ];
+    }
 
     public function creator()
     {
@@ -95,6 +106,16 @@ class Tournament extends Model
     {
         return $this->belongsToMany(User::class, 'tournament_likes')
             ->withTimestamps();
+    }
+
+    public function qualifiersSlots()
+    {
+        return $this->hasMany(QualifiersSlot::class);
+    }
+
+    public function qualifiersReservations()
+    {
+        return $this->hasMany(QualifiersReservation::class);
     }
 
     public function isHost(?User $user = null): bool
@@ -252,10 +273,35 @@ class Tournament extends Model
             return false;
         }
 
-        if (! in_array($this->status, ['draft', 'published'])) {
+        if (! in_array($this->status, ['draft', 'announced'])) {
             return false;
         }
 
         return true;
+    }
+
+    public function getReferees()
+    {
+        return $this->users()
+            ->wherePivot('role_id', function ($query) {
+                $query->select('id')
+                    ->from('tournamentroles')
+                    ->where('name', 'Referee');
+            })
+            ->get();
+    }
+
+    public function isReferee(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $this->tournamentRoleLinks()
+            ->where('user_id', $user->id)
+            ->whereHas('role', fn ($query) => $query->where('name', 'Referee'))
+            ->exists();
     }
 }
