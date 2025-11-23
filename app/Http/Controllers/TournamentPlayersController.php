@@ -16,8 +16,9 @@ class TournamentPlayersController extends Controller
     {
         $data = $this->loadPlayersData($tournament);
 
-        return view('tournaments.players', array_merge($data, [
+        return view('tournaments.show', array_merge($data, [
             'tournament' => $tournament,
+            'currentTab' => 'players',
         ]));
     }
 
@@ -25,10 +26,11 @@ class TournamentPlayersController extends Controller
     {
         $data = $this->loadPlayersData($tournament);
 
-        return view('dashboard.tournaments.edit', array_merge($data, [
+        return view('tournaments.show', array_merge($data, [
             'tournament' => $tournament,
             'currentTab' => 'players',
             'isTeamTournament' => $tournament->isTeamTournament(),
+            'isDashboard' => true,
         ]));
     }
 

@@ -91,6 +91,11 @@ class Tournament extends Model
         return $this->hasMany(TournamentRoleUser::class);
     }
 
+    public function customRoles()
+    {
+        return $this->hasMany(TournamentRole::class);
+    }
+
     public function registeredPlayers()
     {
         return $this->hasMany(TournamentPlayer::class);
@@ -303,5 +308,79 @@ class Tournament extends Model
             ->where('user_id', $user->id)
             ->whereHas('role', fn ($query) => $query->where('name', 'Referee'))
             ->exists();
+    }
+
+    public function getUserRole(?User $user = null): ?TournamentRole
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        $roleLink = $this->tournamentRoleLinks()
+            ->where('user_id', $user->id)
+            ->with('role.permissions')
+            ->first();
+
+        return $roleLink?->role;
+    }
+
+    public function userHasPermission(?User $user, string $resource, string $level = 'view'): bool
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        // Creator always has full permissions
+        if ($this->created_by === $user->id) {
+            return true;
+        }
+
+        $role = $this->getUserRole($user);
+
+        if (! $role) {
+            return false;
+        }
+
+        // Check if role has the required permission
+        return $role->hasPermission($resource, $level);
+    }
+
+    public function getUserPermissions(?User $user = null): array
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user) {
+            return [];
+        }
+
+        // Creator has all permissions
+        if ($this->created_by === $user->id) {
+            $resources = ['tournament', 'staff', 'players', 'teams', 'qualifiers', 'matches', 'bracket', 'mappools'];
+            $permissions = [];
+
+            foreach ($resources as $resource) {
+                $permissions[$resource] = 'edit';
+            }
+
+            return $permissions;
+        }
+
+        $role = $this->getUserRole($user);
+
+        if (! $role) {
+            return [];
+        }
+
+        $permissions = [];
+
+        foreach ($role->permissions as $permission) {
+            $permissions[$permission->resource] = $permission->permission;
+        }
+
+        return $permissions;
     }
 }

@@ -1,6 +1,7 @@
 @php
-    $isDashboard = request()->routeIs('dashboard.*');
+    $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
     $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
+    $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp
 
 <div x-data="{ editing: {{ $errors->any() ? 'true' : 'false' }}, showPublishModal: false }">
@@ -282,7 +283,11 @@
                       format: {{ old('format', $tournament->format) }},
                       minTeamsize: {{ old('min_teamsize', $tournament->min_teamsize) }},
                       maxTeamsize: {{ old('max_teamsize', $tournament->max_teamsize) }},
-                      countryRestrictionType: '{{ old('country_restriction_type', $tournament->country_restriction_type ?? 'none') }}'
+                      countryRestrictionType: '{{ old('country_restriction_type', $tournament->country_restriction_type ?? 'none') }}',
+                      nameLength: {{ old('name') ? strlen(old('name')) : strlen($tournament->name ?? '') }},
+                      editionLength: {{ old('edition') ? strlen(old('edition')) : strlen($tournament->edition ?? '') }},
+                      abbreviationLength: {{ old('abbreviation') ? strlen(old('abbreviation')) : strlen($tournament->abbreviation ?? '') }},
+                      descriptionLength: {{ old('description') ? strlen(old('description')) : strlen($tournament->description ?? '') }}
                   }">
                 @csrf
                 @method('PATCH')
@@ -291,30 +296,46 @@
                     <h2 class="text-xl font-bold text-white mb-6">Basic Information</h2>
                     <div class="space-y-6">
                         <div>
-                            <label for="name" class="block text-sm font-medium text-slate-300 mb-2">Tournament Name *</label>
-                            <input type="text" name="name" id="name" value="{{ old('name', $tournament->name) }}" required
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="name" class="block text-sm font-medium text-slate-300">Tournament Name *</label>
+                                <span class="text-xs text-slate-400" x-text="nameLength + '/255'"></span>
+                            </div>
+                            <input type="text" name="name" id="name" value="{{ old('name', $tournament->name) }}" required maxlength="255"
+                                   @input="nameLength = $event.target.value.length"
                                    class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label for="edition" class="block text-sm font-medium text-slate-300 mb-2">Edition</label>
-                                <input type="text" name="edition" id="edition" value="{{ old('edition', $tournament->edition) }}"
+                                <div class="flex items-center justify-between mb-2">
+                                    <label for="edition" class="block text-sm font-medium text-slate-300">Edition</label>
+                                    <span class="text-xs text-slate-400" x-text="editionLength + '/100'"></span>
+                                </div>
+                                <input type="text" name="edition" id="edition" value="{{ old('edition', $tournament->edition) }}" maxlength="100"
+                                       @input="editionLength = $event.target.value.length"
                                        placeholder="e.g., 2024, Winter, #1"
                                        class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                             </div>
 
                             <div>
-                                <label for="abbreviation" class="block text-sm font-medium text-slate-300 mb-2">Abbreviation</label>
-                                <input type="text" name="abbreviation" id="abbreviation" value="{{ old('abbreviation', $tournament->abbreviation) }}"
+                                <div class="flex items-center justify-between mb-2">
+                                    <label for="abbreviation" class="block text-sm font-medium text-slate-300">Abbreviation</label>
+                                    <span class="text-xs text-slate-400" x-text="abbreviationLength + '/20'"></span>
+                                </div>
+                                <input type="text" name="abbreviation" id="abbreviation" value="{{ old('abbreviation', $tournament->abbreviation) }}" maxlength="20"
+                                       @input="abbreviationLength = $event.target.value.length"
                                        placeholder="e.g., OWC, TST"
                                        class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                             </div>
                         </div>
 
                         <div>
-                            <label for="description" class="block text-sm font-medium text-slate-300 mb-2">Description</label>
-                            <textarea name="description" id="description" rows="4"
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="description" class="block text-sm font-medium text-slate-300">Description</label>
+                                <span class="text-xs text-slate-400" x-text="descriptionLength + '/5000'"></span>
+                            </div>
+                            <textarea name="description" id="description" rows="4" maxlength="5000"
+                                      @input="descriptionLength = $event.target.value.length"
                                       placeholder="Describe your tournament... (Markdown supported)"
                                       class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">{{ old('description', $tournament->description) }}</textarea>
                             <p class="mt-1 text-sm text-slate-400">Supports Markdown: **bold**, *italic*, [links](url), lists, etc.</p>

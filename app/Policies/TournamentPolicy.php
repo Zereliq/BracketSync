@@ -98,4 +98,132 @@ class TournamentPolicy
             ->whereIn('tournamentroles.name', $allowedRoles)
             ->exists();
     }
+
+    /**
+     * Check if user can view a specific resource.
+     */
+    public function viewResource(User $user, Tournament $tournament, string $resource): Response
+    {
+        if ($tournament->userHasPermission($user, $resource, 'view')) {
+            return Response::allow();
+        }
+
+        return Response::deny('You do not have permission to view this section.');
+    }
+
+    /**
+     * Check if user can edit a specific resource.
+     */
+    public function editResource(User $user, Tournament $tournament, string $resource): Response
+    {
+        if ($tournament->userHasPermission($user, $resource, 'edit')) {
+            return Response::allow();
+        }
+
+        return Response::deny('You do not have permission to edit this section.');
+    }
+
+    /**
+     * Tournament settings tab.
+     */
+    public function viewTournament(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'tournament');
+    }
+
+    public function editTournament(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'tournament');
+    }
+
+    /**
+     * Staff management tab.
+     */
+    public function viewStaff(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'staff');
+    }
+
+    public function editStaff(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'staff');
+    }
+
+    /**
+     * Players tab.
+     */
+    public function viewPlayers(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'players');
+    }
+
+    public function editPlayers(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'players');
+    }
+
+    /**
+     * Teams tab.
+     */
+    public function viewTeams(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'teams');
+    }
+
+    public function editTeams(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'teams');
+    }
+
+    /**
+     * Qualifiers tab.
+     */
+    public function viewQualifiers(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'qualifiers');
+    }
+
+    public function editQualifiers(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'qualifiers');
+    }
+
+    /**
+     * Matches tab.
+     */
+    public function viewMatches(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'matches');
+    }
+
+    public function editMatches(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'matches');
+    }
+
+    /**
+     * Bracket tab.
+     */
+    public function viewBracket(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'bracket');
+    }
+
+    public function editBracket(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'bracket');
+    }
+
+    /**
+     * Mappools tab.
+     */
+    public function viewMappools(User $user, Tournament $tournament): Response
+    {
+        return $this->viewResource($user, $tournament, 'mappools');
+    }
+
+    public function editMappools(User $user, Tournament $tournament): Response
+    {
+        return $this->editResource($user, $tournament, 'mappools');
+    }
 }

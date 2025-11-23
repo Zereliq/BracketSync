@@ -142,38 +142,46 @@
     </form>
 
     <div class="mt-6 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-        <h3 class="text-lg font-bold text-white mb-4">Available Roles</h3>
-        <div class="space-y-3">
-            @foreach($roles as $role)
-                <div class="flex items-start space-x-3">
-                    <div class="w-2 h-2 bg-fuchsia-500 rounded-full mt-2"></div>
-                    <div>
-                        <p class="text-white font-medium">{{ $role->name }}</p>
-                        <p class="text-sm text-slate-400">
-                            @if($role->name === 'Host')
-                                Full control over the tournament, can manage all aspects including staff.
-                            @elseif($role->name === 'Organizer')
-                                Can manage staff and tournament operations.
-                            @elseif($role->name === 'Referee')
-                                Manages and officiates matches.
-                            @elseif($role->name === 'Pooler')
-                                Creates and manages map pools.
-                            @elseif($role->name === 'Commentator')
-                                Provides commentary for matches.
-                            @elseif($role->name === 'Streamer')
-                                Streams tournament matches.
-                            @elseif($role->name === 'Designer')
-                                Creates graphics and promotional materials.
-                            @elseif($role->name === 'Developer')
-                                Handles technical aspects and integrations.
-                            @else
-                                Tournament staff member.
+        @if($roles->isEmpty())
+            <div class="text-center py-6">
+                <p class="text-slate-400 mb-4">No roles have been created for this tournament yet.</p>
+                @if($tournament->isHost())
+                    <a href="{{ route('dashboard.tournaments.roles.index', $tournament) }}"
+                       class="inline-block px-6 py-2.5 bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-medium rounded-lg transition-colors">
+                        Create Roles
+                    </a>
+                @endif
+            </div>
+        @else
+            <h3 class="text-lg font-bold text-white mb-4">Available Roles</h3>
+            <div class="space-y-4">
+                @foreach($roles as $role)
+                    <div class="flex items-start space-x-3 p-4 bg-slate-800/30 rounded-lg">
+                        <div class="w-2 h-2 bg-fuchsia-500 rounded-full mt-2"></div>
+                        <div class="flex-1">
+                            <p class="text-white font-medium">{{ $role->name }}</p>
+                            @if($role->description)
+                                <p class="text-sm text-slate-400 mt-1">{{ $role->description }}</p>
                             @endif
-                        </p>
+                            @if($role->permissions->isNotEmpty())
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    @foreach($role->permissions->where('permission', '!=', 'none') as $permission)
+                                        @php
+                                            $colorClass = $permission->permission === 'edit'
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : 'bg-blue-500/20 text-blue-400';
+                                        @endphp
+                                        <span class="px-2 py-0.5 rounded text-xs {{ $colorClass }}">
+                                            {{ ucfirst($permission->resource) }}: {{ ucfirst($permission->permission) }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
-                </div>
-            @endforeach
-        </div>
+                @endforeach
+            </div>
+        @endif
     </div>
 </div>
 

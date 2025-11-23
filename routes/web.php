@@ -45,6 +45,7 @@ Route::prefix('tournaments')->name('tournaments.')->group(function () {
     Route::post('/{tournament}/qualifiers/suggest', [QualifiersController::class, 'suggest'])->name('qualifiers.suggest');
     Route::delete('/{tournament}/qualifiers/cancel/{reservation}', [QualifiersController::class, 'cancel'])->name('qualifiers.cancel');
     Route::get('/{tournament}/matches', [PublicTournamentController::class, 'matches'])->name('matches');
+    Route::get('/{tournament}/bracket', [PublicTournamentController::class, 'bracket'])->name('bracket');
     Route::get('/{tournament}/mappools', [PublicTournamentController::class, 'mappools'])->name('mappools');
 });
 
@@ -67,6 +68,14 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::get('/staff/add', [TournamentController::class, 'addStaff'])->name('staff.add');
         Route::post('/staff', [TournamentController::class, 'storeStaff'])->name('staff.store');
         Route::delete('/staff/{staffMember}', [TournamentController::class, 'removeStaff'])->name('staff.remove');
+        Route::get('/roles', [\App\Http\Controllers\TournamentRoleController::class, 'index'])->name('roles.index');
+        Route::put('/roles/update-all', [\App\Http\Controllers\TournamentRoleController::class, 'updateAll'])->name('roles.update-all');
+        Route::post('/roles/create-custom', [\App\Http\Controllers\TournamentRoleController::class, 'storeCustom'])->name('roles.create-custom');
+        Route::get('/roles/create', [\App\Http\Controllers\TournamentRoleController::class, 'create'])->name('roles.create');
+        Route::post('/roles', [\App\Http\Controllers\TournamentRoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}/edit', [\App\Http\Controllers\TournamentRoleController::class, 'edit'])->name('roles.edit');
+        Route::put('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/players', [TournamentPlayersController::class, 'showDashboard'])->name('players');
         Route::get('/teams', [TournamentController::class, 'teams'])->name('teams');
         Route::get('/qualifiers', [TournamentController::class, 'qualifiers'])->name('qualifiers');

@@ -52,7 +52,7 @@
                     <a href="{{ route('tournaments.index') }}" class="inline-flex items-center justify-center px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors shadow-lg shadow-pink-500/30">
                         View active tournaments
                     </a>
-                    <a href="#host" class="inline-flex items-center justify-center px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors border border-slate-700">
+                    <a href="{{ route('dashboard.tournaments.create') }}" class="inline-flex items-center justify-center px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors border border-slate-700">
                         Host a tournament
                     </a>
                 </div>
@@ -99,13 +99,77 @@
                         </div>
                     </div>
                     <div class="pt-4 border-t border-slate-800">
-                        <p class="text-xs text-slate-500 mb-3">Current Round</p>
-                        <div class="flex items-center justify-center">
-                            <div class="h-16 bg-slate-800 rounded-lg border border-slate-700 flex items-center justify-center px-8">
-                                <div class="text-center">
-                                    <p class="text-lg text-white font-bold">{{ $stageLabels[$stage] ?? ucfirst($stage) }}</p>
+                        <p class="text-xs text-slate-500 mb-3">Tournament Progress</p>
+                        @php
+                            // Define stages to display based on tournament configuration
+                            $displayStages = ['announced', 'registration', 'screening', 'bracket', 'finished'];
+
+                            // Replace screening with qualifiers if tournament has qualifiers
+                            if ($featuredTournament->has_qualifiers) {
+                                $displayStages = array_map(function($s) {
+                                    return $s === 'screening' ? 'qualifiers' : $s;
+                                }, $displayStages);
+                            }
+
+                            $currentStage = $featuredTournament->getCurrentStage();
+                            $currentStageIndex = array_search($currentStage, $displayStages);
+
+                            // If current stage is not in display stages, find closest match
+                            if ($currentStageIndex === false) {
+                                if ($currentStage === 'draft') {
+                                    $currentStageIndex = -1;
+                                } elseif ($currentStage === 'archived') {
+                                    $currentStageIndex = count($displayStages);
+                                } else {
+                                    $currentStageIndex = 0;
+                                }
+                            }
+                        @endphp
+                        <div class="flex items-center justify-between gap-2">
+                            @foreach($displayStages as $index => $stageName)
+                                @php
+                                    $isActive = $stageName === $currentStage;
+                                    $isPast = $currentStageIndex !== false && $index < $currentStageIndex;
+                                    $isFuture = $currentStageIndex !== false && $index > $currentStageIndex;
+
+                                    $stageColor = $statusColors[$stageName] ?? ['bg' => 'bg-slate-500/20', 'text' => 'text-slate-400', 'border' => 'border-slate-500/30'];
+                                @endphp
+                                <div class="flex-1">
+                                    <div class="relative">
+                                        @if($isActive)
+                                            <div class="absolute -inset-1 bg-gradient-to-r from-pink-500/20 to-fuchsia-500/20 rounded-lg blur"></div>
+                                        @endif
+                                        <div class="relative bg-slate-800 rounded-lg border px-3 py-2 transition-all
+                                            @if($isActive)
+                                                {{ $stageColor['border'] }} shadow-lg
+                                            @elseif($isPast)
+                                                border-slate-600/50
+                                            @else
+                                                border-slate-700/30
+                                            @endif">
+                                            <div class="text-center">
+                                                <p class="text-xs font-semibold truncate
+                                                    @if($isActive)
+                                                        {{ $stageColor['text'] }}
+                                                    @elseif($isPast)
+                                                        text-slate-400
+                                                    @else
+                                                        text-slate-600
+                                                    @endif">
+                                                    {{ $stageLabels[$stageName] ?? ucfirst($stageName) }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                                @if(!$loop->last)
+                                    <div class="flex items-center">
+                                        <svg class="w-3 h-3 @if($isPast) text-slate-600 @else text-slate-700 @endif" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </div>
+                                @endif
+                            @endforeach
                         </div>
                     </div>
                 </div>

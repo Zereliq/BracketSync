@@ -220,6 +220,17 @@ class PublicTournamentController extends Controller
     }
 
     /**
+     * Display the tournament bracket tab (public).
+     */
+    public function bracket(Tournament $tournament): mixed
+    {
+        return view('tournaments.show', [
+            'tournament' => $tournament,
+            'currentTab' => 'bracket',
+        ]);
+    }
+
+    /**
      * Display the tournament mappools tab (public).
      */
     public function mappools(Tournament $tournament): mixed

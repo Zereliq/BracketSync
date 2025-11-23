@@ -1,7 +1,8 @@
 @php
-    $isDashboard = request()->routeIs('dashboard.*');
-    $canEdit = $isDashboard && auth()->check() && auth()->user()->can('update', $tournament);
+    $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
+    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
     $teams = $teams ?? collect();
+    $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp
 
 <div class="space-y-6">

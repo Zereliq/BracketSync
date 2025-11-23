@@ -1,13 +1,21 @@
 @php
-    $isDashboard = request()->routeIs('dashboard.*');
-    $canManageStaff = $isDashboard && $tournament->canManageStaff();
-    $isHost = $isDashboard && $tournament->isHost();
+    $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
+    $canManageStaff = auth()->check() && $tournament->canManageStaff();
+    $isHost = auth()->check() && $tournament->isHost();
     $staffByRole = $staffByRole ?? collect();
+    $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp
 
 <div class="space-y-6">
     @if($canManageStaff)
-        <div class="flex justify-end">
+        <div class="flex justify-between items-center">
+            @if($isHost)
+                <a href="{{ route('dashboard.tournaments.roles.index', $tournament) }}" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
+                    Manage Roles
+                </a>
+            @else
+                <div></div>
+            @endif
             <a href="{{ route('dashboard.tournaments.staff.add', $tournament) }}" class="px-6 py-2.5 bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-medium rounded-lg transition-colors">
                 Add Staff Member
             </a>

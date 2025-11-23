@@ -2,9 +2,10 @@
     use App\Models\QualifiersSlot;
     use App\Models\QualifiersReservation;
 
-    $isDashboard = request()->routeIs('dashboard.*');
-    $canEdit = $isDashboard && auth()->check() && auth()->user()->can('update', $tournament);
+    $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
+    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
     $isReferee = auth()->check() && $tournament->isReferee(auth()->user());
+    $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 
     $slots = $tournament->qualifiersSlots()
         ->with(['referee', 'reservations.user', 'reservations.team'])

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
 use App\Models\Tournament;
-use App\Models\TournamentRole;
 use App\Models\TournamentRoleUser;
 use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -20,11 +19,42 @@ class TournamentController extends Controller
      */
     public function index(): mixed
     {
-        $tournaments = Tournament::where('created_by', auth()->id())
-            ->latest()
-            ->paginate(15);
+        $user = auth()->user();
 
-        return view('dashboard.tournaments.index', compact('tournaments'));
+        // Get staff tournaments (created by user or user has a staff role)
+        $staffTournaments = Tournament::query()
+            ->where(function ($q) use ($user) {
+                $q->where('created_by', $user->id)
+                    ->orWhereHas('tournamentRoleLinks', function ($roleQuery) use ($user) {
+                        $roleQuery->where('user_id', $user->id);
+                    });
+            })
+            ->where(function ($q) use ($user) {
+                // For archived and draft tournaments, only show if user has a staff role
+                $q->whereNotIn('status', ['archived', 'draft'])
+                    ->orWhere(function ($subQuery) use ($user) {
+                        $subQuery->whereIn('status', ['archived', 'draft'])
+                            ->where(function ($roleCheck) use ($user) {
+                                $roleCheck->where('created_by', $user->id)
+                                    ->orWhereHas('tournamentRoleLinks', function ($roleQuery) use ($user) {
+                                        $roleQuery->where('user_id', $user->id);
+                                    });
+                            });
+                    });
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Get player tournaments (user is registered as a player)
+        $playerTournaments = Tournament::query()
+            ->whereHas('registeredPlayers', function ($playerQuery) use ($user) {
+                $playerQuery->where('user_id', $user->id);
+            })
+            ->whereNotIn('status', ['archived', 'draft'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('dashboard.tournaments.index', compact('staffTournaments', 'playerTournaments'));
     }
 
     /**
@@ -77,15 +107,8 @@ class TournamentController extends Controller
             'status' => $validated['status'] ?? 'draft',
         ]);
 
-        $hostRole = TournamentRole::where('name', 'Host')->first();
-
-        if ($hostRole) {
-            TournamentRoleUser::create([
-                'tournament_id' => $tournament->id,
-                'user_id' => auth()->id(),
-                'role_id' => $hostRole->id,
-            ]);
-        }
+        // Create standard roles for the tournament
+        $this->createStandardRoles($tournament);
 
         return redirect()
             ->route('dashboard.tournaments.show', $tournament)
@@ -97,7 +120,7 @@ class TournamentController extends Controller
      */
     public function show(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewTournament', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -107,9 +130,10 @@ class TournamentController extends Controller
 
         $tournament->load('creator');
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'tournament',
+            'isDashboard' => true,
         ]);
     }
 
@@ -118,7 +142,7 @@ class TournamentController extends Controller
      */
     public function bracket(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewBracket', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -126,9 +150,10 @@ class TournamentController extends Controller
                 ->with('error', $response->message());
         }
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'bracket',
+            'isDashboard' => true,
         ]);
     }
 
@@ -161,7 +186,7 @@ class TournamentController extends Controller
      */
     public function update(UpdateTournamentRequest $request, Tournament $tournament): mixed
     {
-        $response = Gate::inspect('update', $tournament);
+        $response = Gate::inspect('editTournament', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -216,7 +241,7 @@ class TournamentController extends Controller
      */
     public function staff(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewStaff', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -231,10 +256,11 @@ class TournamentController extends Controller
 
         $staffByRole = $tournament->tournamentRoleLinks->sortBy('role.id')->groupBy('role.name');
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'staff',
             'staffByRole' => $staffByRole,
+            'isDashboard' => true,
         ]);
     }
 
@@ -243,7 +269,7 @@ class TournamentController extends Controller
      */
     public function players(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewPlayers', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -255,10 +281,11 @@ class TournamentController extends Controller
             'teams.members',
         ]);
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'players',
             'teams' => $tournament->teams,
+            'isDashboard' => true,
         ]);
     }
 
@@ -267,7 +294,7 @@ class TournamentController extends Controller
      */
     public function matches(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewMatches', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -280,10 +307,11 @@ class TournamentController extends Controller
             'matches.referee',
         ]);
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'matches',
             'matches' => $tournament->matches,
+            'isDashboard' => true,
         ]);
     }
 
@@ -292,7 +320,7 @@ class TournamentController extends Controller
      */
     public function teams(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewTeams', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -312,12 +340,13 @@ class TournamentController extends Controller
             })->where('user_id', $registration->user_id)->exists();
         });
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'teams',
             'teams' => $tournament->teams,
             'playersWithoutTeam' => $playersWithoutTeam,
             'isTeamTournament' => $tournament->isTeamTournament(),
+            'isDashboard' => true,
         ]);
     }
 
@@ -326,7 +355,7 @@ class TournamentController extends Controller
      */
     public function qualifiers(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewQualifiers', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -334,9 +363,10 @@ class TournamentController extends Controller
                 ->with('error', $response->message());
         }
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'qualifiers',
+            'isDashboard' => true,
         ]);
     }
 
@@ -345,7 +375,7 @@ class TournamentController extends Controller
      */
     public function mappools(Tournament $tournament): mixed
     {
-        $response = Gate::inspect('edit', $tournament);
+        $response = Gate::inspect('viewMappools', $tournament);
 
         if ($response->denied()) {
             return redirect()
@@ -357,10 +387,11 @@ class TournamentController extends Controller
             'mappools.maps',
         ]);
 
-        return view('dashboard.tournaments.edit', [
+        return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'mappools',
             'mappools' => $tournament->mappools,
+            'isDashboard' => true,
         ]);
     }
 
@@ -375,9 +406,11 @@ class TournamentController extends Controller
                 ->with('error', 'You do not have permission to manage staff for this tournament.');
         }
 
+        $roles = $tournament->customRoles()->with('permissions')->get();
+
         return view('dashboard.tournaments.add-staff', [
             'tournament' => $tournament,
-            'roles' => TournamentRole::all(),
+            'roles' => $roles,
         ]);
     }
 
@@ -489,6 +522,173 @@ class TournamentController extends Controller
         return redirect()
             ->route('dashboard.tournaments.staff', $tournament)
             ->with('success', 'Staff member removed successfully!');
+    }
+
+    /**
+     * Create standard roles for a tournament with default permissions.
+     */
+    protected function createStandardRoles(Tournament $tournament): void
+    {
+        $standardRoles = [
+            [
+                'name' => 'Host',
+                'description' => 'Full control over the tournament',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'edit',
+                    'staff' => 'edit',
+                    'players' => 'edit',
+                    'teams' => 'edit',
+                    'qualifiers' => 'edit',
+                    'matches' => 'edit',
+                    'bracket' => 'edit',
+                    'mappools' => 'edit',
+                ],
+            ],
+            [
+                'name' => 'Organizer',
+                'description' => 'Manages tournament operations and staff',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'edit',
+                    'staff' => 'edit',
+                    'players' => 'edit',
+                    'teams' => 'edit',
+                    'qualifiers' => 'edit',
+                    'matches' => 'edit',
+                    'bracket' => 'edit',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Referee',
+                'description' => 'Manages and officiates matches',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'edit',
+                    'matches' => 'edit',
+                    'bracket' => 'view',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Mappooler',
+                'description' => 'Creates and manages map pools',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'view',
+                    'matches' => 'view',
+                    'bracket' => 'view',
+                    'mappools' => 'edit',
+                ],
+            ],
+            [
+                'name' => 'Playtester',
+                'description' => 'Tests maps and provides feedback',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'none',
+                    'teams' => 'none',
+                    'qualifiers' => 'none',
+                    'matches' => 'none',
+                    'bracket' => 'none',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Streamer',
+                'description' => 'Streams tournament matches',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'view',
+                    'matches' => 'view',
+                    'bracket' => 'view',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Commentator',
+                'description' => 'Provides commentary for matches',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'view',
+                    'matches' => 'view',
+                    'bracket' => 'view',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Designer',
+                'description' => 'Creates graphics and promotional materials',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'view',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'none',
+                    'matches' => 'view',
+                    'bracket' => 'view',
+                    'mappools' => 'view',
+                ],
+            ],
+            [
+                'name' => 'Developer',
+                'description' => 'Handles technical aspects and integrations',
+                'is_protected' => true,
+                'permissions' => [
+                    'tournament' => 'edit',
+                    'staff' => 'view',
+                    'players' => 'view',
+                    'teams' => 'view',
+                    'qualifiers' => 'view',
+                    'matches' => 'view',
+                    'bracket' => 'view',
+                    'mappools' => 'view',
+                ],
+            ],
+        ];
+
+        foreach ($standardRoles as $roleData) {
+            $permissions = $roleData['permissions'];
+            unset($roleData['permissions']);
+
+            $role = $tournament->customRoles()->create($roleData);
+
+            foreach ($permissions as $resource => $permission) {
+                $role->permissions()->create([
+                    'resource' => $resource,
+                    'permission' => $permission,
+                ]);
+            }
+
+            // Assign creator as Host
+            if ($roleData['name'] === 'Host') {
+                TournamentRoleUser::create([
+                    'tournament_id' => $tournament->id,
+                    'user_id' => auth()->id(),
+                    'role_id' => $role->id,
+                ]);
+            }
+        }
     }
 
     /**
