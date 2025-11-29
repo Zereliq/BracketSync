@@ -45,7 +45,8 @@ class TournamentInvitationsController extends Controller
             if ($existingInvitation->status === 'pending') {
                 return back()->with('error', 'This player has already been invited.');
             } else {
-                return back()->with('error', 'This player has already accepted an invitation.');
+                // Delete the old accepted invitation and create a new one
+                $existingInvitation->delete();
             }
         }
 
@@ -76,11 +77,30 @@ class TournamentInvitationsController extends Controller
             return back()->with('error', 'This invitation has already been responded to.');
         }
 
+        // Mark invitation as accepted
         $invitation->update(['status' => 'accepted']);
 
+        // Check if user is already registered
+        $alreadyRegistered = $tournament->registeredPlayers()
+            ->where('user_id', auth()->id())
+            ->exists();
+
+        if (! $alreadyRegistered) {
+            // Automatically register the player
+            \App\Models\TournamentPlayer::create([
+                'tournament_id' => $tournament->id,
+                'user_id' => auth()->id(),
+                'looking_for_team' => false,
+            ]);
+
+            return redirect()
+                ->route('tournaments.players', $tournament)
+                ->with('success', 'Invitation accepted! You have been registered for the tournament.');
+        }
+
         return redirect()
-            ->route('tournaments.players.show', $tournament)
-            ->with('success', 'Invitation accepted! You can now register for the tournament.');
+            ->route('tournaments.players', $tournament)
+            ->with('success', 'Invitation accepted!');
     }
 
     public function decline(Tournament $tournament, TournamentInvitation $invitation)

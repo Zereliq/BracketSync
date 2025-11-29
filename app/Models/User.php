@@ -33,6 +33,7 @@ class User extends Authenticatable
         'elo',
         'siterole_id',
         'email',
+        'discord_username',
         'osu_access_token',
         'osu_refresh_token',
         'osu_token_expires_at',

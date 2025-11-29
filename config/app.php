@@ -86,6 +86,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Available Locales
+    |--------------------------------------------------------------------------
+    |
+    | List of all available locales for the application. Add more language
+    | codes here as you add new language files.
+    |
+    */
+
+    'available_locales' => ['en', 'nl'],
+
+    'locale_names' => [
+        'en' => 'English',
+        'nl' => 'Nederlands',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

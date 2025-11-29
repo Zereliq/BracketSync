@@ -153,6 +153,34 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
+                        {{-- Language Switcher --}}
+                        <div class="relative" x-data="{ open: false }">
+                            <button type="button"
+                                    @click="open = !open"
+                                    @click.away="open = false"
+                                    class="text-slate-400 hover:text-white transition-colors"
+                                    title="Language">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path>
+                                </svg>
+                            </button>
+                            <div x-show="open"
+                                 x-cloak
+                                 class="absolute right-0 bottom-full mb-2 w-40 bg-slate-900 border border-slate-800 rounded-lg shadow-xl z-50">
+                                @foreach(config('app.available_locales', ['en']) as $locale)
+                                    <a href="{{ request()->fullUrlWithQuery(['lang' => $locale]) }}"
+                                       class="block px-4 py-2 text-sm hover:bg-slate-800 transition-colors {{ app()->getLocale() === $locale ? 'text-pink-400 font-medium' : 'text-slate-300' }} first:rounded-t-lg last:rounded-b-lg">
+                                        {{ config('app.locale_names')[$locale] ?? strtoupper($locale) }}
+                                        @if(app()->getLocale() === $locale)
+                                            <svg class="w-4 h-4 inline ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        @endif
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+
                         @php
                             $pendingTeamInvites = \App\Models\TeamInvitation::where('user_id', auth()->id())
                                 ->where('status', 'pending')
@@ -160,7 +188,10 @@
                             $pendingStaffInvites = \App\Models\StaffInvitation::where('user_id', auth()->id())
                                 ->where('status', 'pending')
                                 ->count();
-                            $pendingInvites = $pendingTeamInvites + $pendingStaffInvites;
+                            $pendingTournamentInvites = \App\Models\TournamentInvitation::where('user_id', auth()->id())
+                                ->where('status', 'pending')
+                                ->count();
+                            $pendingInvites = $pendingTeamInvites + $pendingStaffInvites + $pendingTournamentInvites;
                         @endphp
                         <div class="relative">
                             <button type="button"
@@ -215,7 +246,49 @@
                         ->with(['tournament', 'role', 'inviter'])
                         ->latest()
                         ->get();
+
+                    $tournamentInvitations = \App\Models\TournamentInvitation::where('user_id', auth()->id())
+                        ->where('status', 'pending')
+                        ->with(['tournament', 'inviter'])
+                        ->latest()
+                        ->get();
                 @endphp
+
+                {{-- Tournament Invitations --}}
+                @foreach($tournamentInvitations as $invitation)
+                    <div class="bg-pink-500/10 border border-pink-500/30 rounded-lg p-4 space-y-3">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"></path>
+                                </svg>
+                                <span class="text-xs font-semibold text-pink-400 uppercase">Tournament Invitation</span>
+                            </div>
+                            <p class="text-white font-medium">{{ $invitation->tournament->name }}</p>
+                            @if($invitation->tournament->edition)
+                                <p class="text-sm text-pink-300">{{ $invitation->tournament->edition }}</p>
+                            @endif
+                            <p class="text-xs text-slate-400 mt-1">
+                                Invited by {{ $invitation->inviter->name }} • {{ $invitation->created_at->diffForHumans() }}
+                            </p>
+                        </div>
+
+                        <div class="flex space-x-2">
+                            <form action="{{ route('tournaments.invitations.accept', [$invitation->tournament, $invitation]) }}" method="POST" class="flex-1">
+                                @csrf
+                                <button type="submit" class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    Accept
+                                </button>
+                            </form>
+                            <form action="{{ route('tournaments.invitations.decline', [$invitation->tournament, $invitation]) }}" method="POST" class="flex-1">
+                                @csrf
+                                <button type="submit" class="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    Decline
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                @endforeach
 
                 {{-- Staff Invitations --}}
                 @foreach($staffInvitations as $invitation)
@@ -285,7 +358,7 @@
                     </div>
                 @endforeach
 
-                @if($teamInvitations->isEmpty() && $staffInvitations->isEmpty())
+                @if($teamInvitations->isEmpty() && $staffInvitations->isEmpty() && $tournamentInvitations->isEmpty())
                     <div class="text-center py-8">
                         <svg class="w-16 h-16 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>

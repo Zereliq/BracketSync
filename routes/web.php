@@ -15,6 +15,7 @@ use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentInvitationsController;
 use App\Http\Controllers\TournamentPlayersController;
 use App\Http\Controllers\TournamentQualifiersController;
+use App\Http\Controllers\UserSettingsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('homepage');
@@ -29,6 +30,12 @@ Route::post('/logout', function () {
 
     return redirect('/')->with('success', 'You have been logged out successfully.');
 })->name('logout');
+
+// User settings routes
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/settings', [UserSettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings', [UserSettingsController::class, 'update'])->name('settings.update');
+});
 
 // Public tournament routes
 Route::prefix('tournaments')->name('tournaments.')->group(function () {
@@ -80,6 +87,7 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::put('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'update'])->name('roles.update');
         Route::delete('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/players', [TournamentPlayersController::class, 'showDashboard'])->name('players');
+        Route::delete('/players/{player}', [TournamentPlayersController::class, 'removePlayer'])->name('players.remove');
         Route::post('/invitations', [TournamentInvitationsController::class, 'store'])->name('invitations.store');
         Route::get('/teams', [TournamentController::class, 'teams'])->name('teams');
         Route::get('/qualifiers', [TournamentController::class, 'qualifiers'])->name('qualifiers');

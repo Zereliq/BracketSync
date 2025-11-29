@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return route('homepage');
         });
+
+        // Add locale middleware to web group
+        $middleware->web(append: [
+            \App\Http\Middleware\SetLocale::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

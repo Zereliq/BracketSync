@@ -561,16 +561,18 @@ class TournamentController extends Controller
      */
     public function searchUsers(): mixed
     {
-        $query = request('query');
+        $query = request('q') ?? request('query');
 
         if (! $query || strlen($query) < 2) {
             return response()->json([]);
         }
 
-        $users = User::where('name', 'like', $query.'%')
-            ->orWhere('name', 'like', '%'.$query.'%')
+        $users = User::where(function ($q) use ($query) {
+            $q->where('name', 'like', '%'.$query.'%')
+                ->orWhere('osu_username', 'like', '%'.$query.'%');
+        })
             ->limit(10)
-            ->get(['id', 'name', 'avatar_url']);
+            ->get(['id', 'name', 'osu_username', 'avatar_url', 'country_code']);
 
         return response()->json($users);
     }

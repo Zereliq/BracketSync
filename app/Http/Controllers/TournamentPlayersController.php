@@ -134,6 +134,45 @@ class TournamentPlayersController extends Controller
         return back()->with('success', 'Successfully withdrawn from the tournament.');
     }
 
+    public function removePlayer(Tournament $tournament, TournamentPlayer $player)
+    {
+        if (! auth()->check()) {
+            return back()->with('error', 'Unauthorized.');
+        }
+
+        // Check if user has permission to edit players
+        if (! auth()->user()->can('editPlayers', $tournament)) {
+            return back()->with('error', 'You do not have permission to remove players.');
+        }
+
+        // Verify the player belongs to this tournament
+        if ($player->tournament_id !== $tournament->id) {
+            abort(404);
+        }
+
+        $playerName = $player->user->name ?? 'Player';
+
+        // If they're on a team, remove them from the team
+        $teamUser = TeamUser::whereHas('team', function ($query) use ($tournament) {
+            $query->where('tournament_id', $tournament->id);
+        })->where('user_id', $player->user_id)->first();
+
+        if ($teamUser) {
+            $team = $teamUser->team;
+            $teamUser->delete();
+
+            // Delete team if empty
+            if ($team->members()->count() === 0) {
+                $team->delete();
+            }
+        }
+
+        // Remove registration
+        $player->delete();
+
+        return back()->with('success', "Successfully removed {$playerName} from the tournament.");
+    }
+
     private function loadPlayersData(Tournament $tournament): array
     {
         $isTeamTournament = $tournament->isTeamTournament();
@@ -162,6 +201,7 @@ class TournamentPlayersController extends Controller
         $userCanPlayAsStaff = true;
 
         $pendingInvitation = null;
+        $pendingInvitations = collect();
 
         if ($user) {
             // Check if user is registered
@@ -198,6 +238,15 @@ class TournamentPlayersController extends Controller
                     $signupError = $validation;
                 }
             }
+
+            // Load pending invitations for staff
+            if ($user->can('editPlayers', $tournament)) {
+                $pendingInvitations = \App\Models\TournamentInvitation::where('tournament_id', $tournament->id)
+                    ->where('status', 'pending')
+                    ->with(['user', 'inviter'])
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            }
         } else {
             $signupError = 'Please log in with osu! to sign up.';
         }
@@ -212,6 +261,7 @@ class TournamentPlayersController extends Controller
             'userIsStaff' => $userIsStaff,
             'userCanPlayAsStaff' => $userCanPlayAsStaff,
             'pendingInvitation' => $pendingInvitation,
+            'pendingInvitations' => $pendingInvitations,
         ];
     }
 
