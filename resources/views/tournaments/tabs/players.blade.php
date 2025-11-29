@@ -1,11 +1,49 @@
 @php
     $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
-    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
+    $canEdit = auth()->check() && auth()->user()->can('editPlayers', $tournament);
     $teams = $teams ?? collect();
     $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp
 
 <div class="space-y-6">
+    {{-- Pending Invitation (Public View Only) --}}
+    @if(!$isDashboard && $pendingInvitation)
+        <div class="bg-slate-900 border border-blue-500/50 rounded-xl p-6">
+            <h2 class="text-xl font-bold text-white mb-4">Tournament Invitation</h2>
+            <div class="space-y-4">
+                <div class="flex items-start space-x-3 p-4 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                    <svg class="w-6 h-6 text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"></path>
+                    </svg>
+                    <div class="flex-1">
+                        <p class="text-white font-medium">You've been invited to this tournament!</p>
+                        <p class="text-sm text-slate-300 mt-1">
+                            <span class="text-blue-400">{{ $pendingInvitation->inviter->name }}</span> has invited you to participate in this tournament.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <form action="{{ route('tournaments.invitations.accept', [$tournament, $pendingInvitation]) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit"
+                                class="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors">
+                            Accept Invitation
+                        </button>
+                    </form>
+                    <form action="{{ route('tournaments.invitations.decline', [$tournament, $pendingInvitation]) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit"
+                                class="w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
+                                onclick="return confirm('Are you sure you want to decline this invitation?')">
+                            Decline
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Registration Status & Actions (Public View Only) --}}
     @if(!$isDashboard)
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
@@ -168,6 +206,134 @@
                     </div>
                 </div>
             @endif
+        </div>
+    @endif
+
+    {{-- Invite Players Section (Dashboard - Staff Only) --}}
+    @if($isDashboard && $canEdit)
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 class="text-xl font-bold text-white mb-4">
+                @if($tournament->signup_method === 'invitationals')
+                    Invite Players
+                @else
+                    Add Player
+                @endif
+            </h2>
+            <p class="text-slate-300 mb-4">
+                @if($tournament->signup_method === 'invitationals')
+                    Search for players to invite to this tournament.
+                @else
+                    Manually add players to this tournament.
+                @endif
+            </p>
+
+            <form action="{{ route('dashboard.tournaments.invitations.store', $tournament) }}" method="POST" class="space-y-4">
+                @csrf
+                <div>
+                    <label for="user_search" class="block text-sm font-medium text-slate-300 mb-2">Search for Player</label>
+                    <div class="relative">
+                        <input type="text"
+                               id="user_search"
+                               placeholder="Type a username to search..."
+                               class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
+                        <div id="search_results" class="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto"></div>
+                    </div>
+                    <input type="hidden" name="user_id" id="selected_user_id">
+                    <div id="selected_user" class="mt-2 hidden">
+                        <div class="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700">
+                            <div class="flex items-center space-x-3">
+                                <img id="selected_user_avatar" src="" alt="" class="w-10 h-10 rounded-full">
+                                <div>
+                                    <p id="selected_user_name" class="text-white font-medium"></p>
+                                    <p id="selected_user_rank" class="text-sm text-slate-400"></p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="clearSelection()" class="text-slate-400 hover:text-white">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit"
+                        id="invite_button"
+                        disabled
+                        class="px-6 py-3 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if($tournament->signup_method === 'invitationals')
+                        Send Invitation
+                    @else
+                        Add Player
+                    @endif
+                </button>
+            </form>
+
+            <script>
+                let searchTimeout;
+                const searchInput = document.getElementById('user_search');
+                const searchResults = document.getElementById('search_results');
+                const selectedUserDiv = document.getElementById('selected_user');
+                const selectedUserIdInput = document.getElementById('selected_user_id');
+                const inviteButton = document.getElementById('invite_button');
+
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    const query = this.value.trim();
+
+                    if (query.length < 2) {
+                        searchResults.classList.add('hidden');
+                        return;
+                    }
+
+                    searchTimeout = setTimeout(() => {
+                        fetch(`{{ route('dashboard.users.search') }}?q=${encodeURIComponent(query)}`)
+                            .then(response => response.json())
+                            .then(users => {
+                                if (users.length === 0) {
+                                    searchResults.innerHTML = '<div class="p-3 text-slate-400 text-sm">No users found</div>';
+                                } else {
+                                    searchResults.innerHTML = users.map(user => `
+                                        <div class="p-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0"
+                                             onclick='selectUser(${JSON.stringify(user)})'>
+                                            <div class="flex items-center space-x-3">
+                                                <img src="${user.avatar_url}" alt="${user.name}" class="w-8 h-8 rounded-full">
+                                                <div>
+                                                    <p class="text-white font-medium text-sm">${user.name}</p>
+                                                    ${user.rank ? `<p class="text-xs text-slate-400">Rank: #${user.rank.toLocaleString()}</p>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('');
+                                }
+                                searchResults.classList.remove('hidden');
+                            });
+                    }, 300);
+                });
+
+                function selectUser(user) {
+                    selectedUserIdInput.value = user.id;
+                    document.getElementById('selected_user_avatar').src = user.avatar_url;
+                    document.getElementById('selected_user_name').textContent = user.name;
+                    document.getElementById('selected_user_rank').textContent = user.rank ? `Rank: #${user.rank.toLocaleString()}` : '';
+                    selectedUserDiv.classList.remove('hidden');
+                    searchResults.classList.add('hidden');
+                    searchInput.value = '';
+                    inviteButton.disabled = false;
+                }
+
+                function clearSelection() {
+                    selectedUserIdInput.value = '';
+                    selectedUserDiv.classList.add('hidden');
+                    inviteButton.disabled = true;
+                }
+
+                document.addEventListener('click', function(e) {
+                    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                        searchResults.classList.add('hidden');
+                    }
+                });
+            </script>
         </div>
     @endif
 

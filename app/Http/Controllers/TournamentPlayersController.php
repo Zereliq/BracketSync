@@ -59,6 +59,14 @@ class TournamentPlayersController extends Controller
                 'looking_for_team' => false,
             ]);
 
+            // If tournament is invitational, mark the invitation as accepted
+            if ($tournament->signup_method === 'invitationals') {
+                \App\Models\TournamentInvitation::where('tournament_id', $tournament->id)
+                    ->where('user_id', $user->id)
+                    ->where('status', 'pending')
+                    ->update(['status' => 'accepted']);
+            }
+
             return back()->with('success', 'Successfully registered for the tournament!');
         }
 
@@ -68,6 +76,14 @@ class TournamentPlayersController extends Controller
             'user_id' => $user->id,
             'looking_for_team' => $lookingForTeam,
         ]);
+
+        // If tournament is invitational, mark the invitation as accepted
+        if ($tournament->signup_method === 'invitationals') {
+            \App\Models\TournamentInvitation::where('tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'accepted']);
+        }
 
         $message = $lookingForTeam
             ? 'Successfully registered! You\'re marked as looking for a team.'
@@ -145,11 +161,20 @@ class TournamentPlayersController extends Controller
         $userIsStaff = false;
         $userCanPlayAsStaff = true;
 
+        $pendingInvitation = null;
+
         if ($user) {
             // Check if user is registered
             $signedUp = TournamentPlayer::where('tournament_id', $tournament->id)
                 ->where('user_id', $user->id)
                 ->exists();
+
+            // Check for pending invitation
+            $pendingInvitation = \App\Models\TournamentInvitation::where('tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->with('inviter')
+                ->first();
 
             $staffRole = $tournament->tournamentRoleLinks()
                 ->where('user_id', $user->id)
@@ -186,6 +211,7 @@ class TournamentPlayersController extends Controller
             'isTeamTournament' => $isTeamTournament,
             'userIsStaff' => $userIsStaff,
             'userCanPlayAsStaff' => $userCanPlayAsStaff,
+            'pendingInvitation' => $pendingInvitation,
         ];
     }
 
@@ -197,6 +223,18 @@ class TournamentPlayersController extends Controller
 
         if (! in_array($tournament->status, ['draft', 'announced'])) {
             return 'Signups are closed for this tournament.';
+        }
+
+        // Check if tournament is invitational
+        if ($tournament->signup_method === 'invitationals') {
+            $hasInvitation = \App\Models\TournamentInvitation::where('tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->exists();
+
+            if (! $hasInvitation) {
+                return 'This is an invitational tournament. You need an invitation to participate.';
+            }
         }
 
         $staffRole = $tournament->tournamentRoleLinks()

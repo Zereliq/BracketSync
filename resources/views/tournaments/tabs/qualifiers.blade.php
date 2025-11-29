@@ -3,7 +3,7 @@
     use App\Models\QualifiersReservation;
 
     $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
-    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
+    $canEdit = auth()->check() && auth()->user()->can('editQualifiers', $tournament);
     $isReferee = auth()->check() && $tournament->isReferee(auth()->user());
     $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 

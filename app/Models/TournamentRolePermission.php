@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class TournamentRolePermission extends Model
 {
+    protected $table = 'tournament_role_permissions';
+
     protected $fillable = [
         'role_id',
         'resource',

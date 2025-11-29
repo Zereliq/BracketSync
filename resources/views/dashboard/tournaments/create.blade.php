@@ -41,6 +41,7 @@
               minTeamsize: {{ old('min_teamsize', 1) }},
               maxTeamsize: {{ old('max_teamsize', 1) }},
               countryRestrictionType: '{{ old('country_restriction_type', 'none') }}',
+              hasQualifiers: {{ old('has_qualifiers') ? 'true' : 'false' }},
               nameLength: {{ old('name') ? strlen(old('name')) : 0 }},
               editionLength: {{ old('edition') ? strlen(old('edition')) : 0 }},
               abbreviationLength: {{ old('abbreviation') ? strlen(old('abbreviation')) : 0 }},
@@ -186,7 +187,7 @@
                                 class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                             <option value="">Select method</option>
                             <option value="self" {{ old('signup_method') == 'self' ? 'selected' : '' }}>Self Signup</option>
-                            <option value="host" {{ old('signup_method') == 'host' ? 'selected' : '' }}>Host Invites</option>
+                            <option value="invitationals" {{ old('signup_method') == 'invitationals' ? 'selected' : '' }}>Invitationals</option>
                         </select>
                     </div>
                 </div>
@@ -203,11 +204,21 @@
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
             <h2 class="text-xl font-bold text-white mb-6">Qualifiers & Seeding</h2>
             <div class="space-y-6">
-                <div class="flex items-center">
-                    <input type="hidden" name="has_qualifiers" value="0">
-                    <input type="checkbox" name="has_qualifiers" id="has_qualifiers" value="1" {{ old('has_qualifiers') ? 'checked' : '' }}
-                           class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
-                    <label for="has_qualifiers" class="ml-2 text-sm font-medium text-slate-300">Has Qualifiers</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex items-center">
+                        <input type="hidden" name="has_qualifiers" value="0">
+                        <input type="checkbox" name="has_qualifiers" id="has_qualifiers" value="1" {{ old('has_qualifiers') ? 'checked' : '' }}
+                               x-model="hasQualifiers"
+                               class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
+                        <label for="has_qualifiers" class="ml-2 text-sm font-medium text-slate-300">Has Qualifiers</label>
+                    </div>
+
+                    <div class="flex items-center">
+                        <input type="hidden" name="qualifier_results_public" value="0">
+                        <input type="checkbox" name="qualifier_results_public" id="qualifier_results_public" value="1" {{ old('qualifier_results_public') ? 'checked' : '' }}
+                               class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
+                        <label for="qualifier_results_public" class="ml-2 text-sm font-medium text-slate-300">Make Qualifier Results Public</label>
+                    </div>
                 </div>
 
                 <div>
@@ -215,19 +226,13 @@
                     <select name="seeding_type" id="seeding_type" required
                             class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                         <option value="">Select seeding type</option>
+                        <option value="rank" {{ old('seeding_type') == 'rank' ? 'selected' : '' }}>Rank</option>
                         <option value="custom" {{ old('seeding_type') == 'custom' ? 'selected' : '' }}>Custom</option>
-                        <option value="avg_score" {{ old('seeding_type') == 'avg_score' ? 'selected' : '' }}>Average Score</option>
-                        <option value="mp_percent" {{ old('seeding_type') == 'mp_percent' ? 'selected' : '' }}>Match Point Percent</option>
-                        <option value="points" {{ old('seeding_type') == 'points' ? 'selected' : '' }}>Points</option>
-                        <option value="drawing" {{ old('seeding_type') == 'drawing' ? 'selected' : '' }}>Random Drawing</option>
+                        <option value="avg_score" {{ old('seeding_type') == 'avg_score' ? 'selected' : '' }} x-show="hasQualifiers">Average Score</option>
+                        <option value="mp_percent" {{ old('seeding_type') == 'mp_percent' ? 'selected' : '' }} x-show="hasQualifiers">Match Point Percent</option>
+                        <option value="points" {{ old('seeding_type') == 'points' ? 'selected' : '' }} x-show="hasQualifiers">Points</option>
+                        <option value="drawing" {{ old('seeding_type') == 'drawing' ? 'selected' : '' }} x-show="hasQualifiers">Random Drawing</option>
                     </select>
-                </div>
-
-                <div class="flex items-center">
-                    <input type="hidden" name="qualifier_results_public" value="0">
-                    <input type="checkbox" name="qualifier_results_public" id="qualifier_results_public" value="1" {{ old('qualifier_results_public') ? 'checked' : '' }}
-                           class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
-                    <label for="qualifier_results_public" class="ml-2 text-sm font-medium text-slate-300">Make Qualifier Results Public</label>
                 </div>
             </div>
         </div>

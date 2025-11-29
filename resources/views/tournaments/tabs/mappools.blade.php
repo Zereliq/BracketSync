@@ -1,6 +1,6 @@
 @php
     $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
-    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
+    $canEdit = auth()->check() && auth()->user()->can('editMappools', $tournament);
     $mappools = $mappools ?? collect();
     $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp

@@ -21,7 +21,7 @@ class TournamentFactory extends Factory
         $bracketSizes = [16, 32, 64];
         $seedingTypes = ['custom', 'avg_score', 'mp_percent', 'points', 'drawing'];
         $winConditions = ['scoreV2', 'scoreV1', 'acc', 'combo'];
-        $signupMethods = ['self', 'host'];
+        $signupMethods = ['self', 'invitationals'];
 
         return [
             'name' => fake()->words(3, true).' Tournament',

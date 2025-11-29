@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateTournamentRequest;
 use App\Models\Tournament;
 use App\Models\TournamentRoleUser;
 use App\Models\User;
+use App\Services\TournamentRoleService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Gate;
 
@@ -529,143 +530,7 @@ class TournamentController extends Controller
      */
     protected function createStandardRoles(Tournament $tournament): void
     {
-        $standardRoles = [
-            [
-                'name' => 'Host',
-                'description' => 'Full control over the tournament',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'edit',
-                    'staff' => 'edit',
-                    'players' => 'edit',
-                    'teams' => 'edit',
-                    'qualifiers' => 'edit',
-                    'matches' => 'edit',
-                    'bracket' => 'edit',
-                    'mappools' => 'edit',
-                ],
-            ],
-            [
-                'name' => 'Organizer',
-                'description' => 'Manages tournament operations and staff',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'edit',
-                    'staff' => 'edit',
-                    'players' => 'edit',
-                    'teams' => 'edit',
-                    'qualifiers' => 'edit',
-                    'matches' => 'edit',
-                    'bracket' => 'edit',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Referee',
-                'description' => 'Manages and officiates matches',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'edit',
-                    'matches' => 'edit',
-                    'bracket' => 'view',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Mappooler',
-                'description' => 'Creates and manages map pools',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'view',
-                    'matches' => 'view',
-                    'bracket' => 'view',
-                    'mappools' => 'edit',
-                ],
-            ],
-            [
-                'name' => 'Playtester',
-                'description' => 'Tests maps and provides feedback',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'none',
-                    'teams' => 'none',
-                    'qualifiers' => 'none',
-                    'matches' => 'none',
-                    'bracket' => 'none',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Streamer',
-                'description' => 'Streams tournament matches',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'view',
-                    'matches' => 'view',
-                    'bracket' => 'view',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Commentator',
-                'description' => 'Provides commentary for matches',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'view',
-                    'matches' => 'view',
-                    'bracket' => 'view',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Designer',
-                'description' => 'Creates graphics and promotional materials',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'view',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'none',
-                    'matches' => 'view',
-                    'bracket' => 'view',
-                    'mappools' => 'view',
-                ],
-            ],
-            [
-                'name' => 'Developer',
-                'description' => 'Handles technical aspects and integrations',
-                'is_protected' => true,
-                'permissions' => [
-                    'tournament' => 'edit',
-                    'staff' => 'view',
-                    'players' => 'view',
-                    'teams' => 'view',
-                    'qualifiers' => 'view',
-                    'matches' => 'view',
-                    'bracket' => 'view',
-                    'mappools' => 'view',
-                ],
-            ],
-        ];
+        $standardRoles = TournamentRoleService::getStandardRoles();
 
         foreach ($standardRoles as $roleData) {
             $permissions = $roleData['permissions'];

@@ -12,6 +12,7 @@ use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TeamManagementController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TournamentController;
+use App\Http\Controllers\TournamentInvitationsController;
 use App\Http\Controllers\TournamentPlayersController;
 use App\Http\Controllers\TournamentQualifiersController;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,8 @@ Route::prefix('tournaments')->name('tournaments.')->group(function () {
     Route::get('/{tournament}/players', [TournamentPlayersController::class, 'showPublic'])->name('players');
     Route::post('/{tournament}/players/signup', [TournamentPlayersController::class, 'signupPublic'])->name('players.signup');
     Route::delete('/{tournament}/players/signup', [TournamentPlayersController::class, 'withdrawPublic'])->name('players.withdraw');
+    Route::post('/{tournament}/invitations/{invitation}/accept', [TournamentInvitationsController::class, 'accept'])->name('invitations.accept');
+    Route::post('/{tournament}/invitations/{invitation}/decline', [TournamentInvitationsController::class, 'decline'])->name('invitations.decline');
     Route::get('/{tournament}/teams', [PublicTournamentController::class, 'teams'])->name('teams');
     Route::get('/{tournament}/qualifiers', [PublicTournamentController::class, 'qualifiers'])->name('qualifiers');
     Route::post('/{tournament}/qualifiers/reserve/{slot}', [QualifiersController::class, 'reserve'])->name('qualifiers.reserve');
@@ -77,6 +80,7 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::put('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'update'])->name('roles.update');
         Route::delete('/roles/{role}', [\App\Http\Controllers\TournamentRoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/players', [TournamentPlayersController::class, 'showDashboard'])->name('players');
+        Route::post('/invitations', [TournamentInvitationsController::class, 'store'])->name('invitations.store');
         Route::get('/teams', [TournamentController::class, 'teams'])->name('teams');
         Route::get('/qualifiers', [TournamentController::class, 'qualifiers'])->name('qualifiers');
         Route::post('/qualifiers/settings', [TournamentQualifiersController::class, 'updateSettings'])->name('qualifiers.settings.update');

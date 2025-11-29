@@ -383,4 +383,9 @@ class Tournament extends Model
 
         return $permissions;
     }
+
+    public function invitations()
+    {
+        return $this->hasMany(TournamentInvitation::class);
+    }
 }

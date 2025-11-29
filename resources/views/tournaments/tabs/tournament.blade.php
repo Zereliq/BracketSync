@@ -1,13 +1,13 @@
 @php
     $isDashboard = $isDashboard ?? request()->routeIs('dashboard.*');
-    $canEdit = auth()->check() && auth()->user()->can('update', $tournament);
+    $canEdit = auth()->check() && auth()->user()->can('editTournament', $tournament);
     $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
 @endphp
 
 <div x-data="{ editing: {{ $errors->any() ? 'true' : 'false' }}, showPublishModal: false }">
-    @can('update', $tournament)
+    @if($canEdit)
         <div class="flex justify-end gap-3 mb-6">
-            @if($tournament->canManageStaff() && $tournament->status !== 'announced')
+            @if($canEdit && $tournament->status !== 'announced')
                 <button @click="showPublishModal = true"
                         type="button"
                         class="px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
@@ -30,7 +30,7 @@
                 <span x-text="editing ? 'Cancel Editing' : 'Edit Tournament'"></span>
             </button>
         </div>
-    @endcan
+    @endif
 
     <!-- Publish Confirmation Modal -->
     <div x-show="showPublishModal"
@@ -265,7 +265,7 @@
     </div>
 
     <!-- Edit Mode (Only for authorized users) -->
-    @can('update', $tournament)
+    @if($canEdit)
         <div x-show="editing" x-cloak id="edit-form">
             @if($errors->any())
                 <div class="mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-6 py-4 rounded-lg">
@@ -284,6 +284,7 @@
                       minTeamsize: {{ old('min_teamsize', $tournament->min_teamsize) }},
                       maxTeamsize: {{ old('max_teamsize', $tournament->max_teamsize) }},
                       countryRestrictionType: '{{ old('country_restriction_type', $tournament->country_restriction_type ?? 'none') }}',
+                      hasQualifiers: {{ old('has_qualifiers', $tournament->has_qualifiers) ? 'true' : 'false' }},
                       nameLength: {{ old('name') ? strlen(old('name')) : strlen($tournament->name ?? '') }},
                       editionLength: {{ old('edition') ? strlen(old('edition')) : strlen($tournament->edition ?? '') }},
                       abbreviationLength: {{ old('abbreviation') ? strlen(old('abbreviation')) : strlen($tournament->abbreviation ?? '') }},
@@ -430,7 +431,7 @@
                                         class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                                     <option value="">Select method</option>
                                     <option value="self" {{ old('signup_method', $tournament->signup_method) == 'self' ? 'selected' : '' }}>Self Signup</option>
-                                    <option value="host" {{ old('signup_method', $tournament->signup_method) == 'host' ? 'selected' : '' }}>Host Invites</option>
+                                    <option value="invitationals" {{ old('signup_method', $tournament->signup_method) == 'invitationals' ? 'selected' : '' }}>Invitationals</option>
                                 </select>
                             </div>
                         </div>
@@ -447,11 +448,21 @@
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
                     <h2 class="text-xl font-bold text-white mb-6">Qualifiers & Seeding</h2>
                     <div class="space-y-6">
-                        <div class="flex items-center">
-                            <input type="hidden" name="has_qualifiers" value="0">
-                            <input type="checkbox" name="has_qualifiers" id="has_qualifiers" value="1" {{ old('has_qualifiers', $tournament->has_qualifiers) ? 'checked' : '' }}
-                                   class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
-                            <label for="has_qualifiers" class="ml-2 text-sm font-medium text-slate-300">Has Qualifiers</label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="flex items-center">
+                                <input type="hidden" name="has_qualifiers" value="0">
+                                <input type="checkbox" name="has_qualifiers" id="has_qualifiers" value="1" {{ old('has_qualifiers', $tournament->has_qualifiers) ? 'checked' : '' }}
+                                       x-model="hasQualifiers"
+                                       class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
+                                <label for="has_qualifiers" class="ml-2 text-sm font-medium text-slate-300">Has Qualifiers</label>
+                            </div>
+
+                            <div class="flex items-center">
+                                <input type="hidden" name="qualifier_results_public" value="0">
+                                <input type="checkbox" name="qualifier_results_public" id="qualifier_results_public" value="1" {{ old('qualifier_results_public', $tournament->qualifier_results_public) ? 'checked' : '' }}
+                                       class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
+                                <label for="qualifier_results_public" class="ml-2 text-sm font-medium text-slate-300">Make Qualifier Results Public</label>
+                            </div>
                         </div>
 
                         <div>
@@ -459,19 +470,13 @@
                             <select name="seeding_type" id="seeding_type" required
                                     class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
                                 <option value="">Select seeding type</option>
+                                <option value="rank" {{ old('seeding_type', $tournament->seeding_type) == 'rank' ? 'selected' : '' }}>Rank</option>
                                 <option value="custom" {{ old('seeding_type', $tournament->seeding_type) == 'custom' ? 'selected' : '' }}>Custom</option>
-                                <option value="avg_score" {{ old('seeding_type', $tournament->seeding_type) == 'avg_score' ? 'selected' : '' }}>Average Score</option>
-                                <option value="mp_percent" {{ old('seeding_type', $tournament->seeding_type) == 'mp_percent' ? 'selected' : '' }}>Match Point Percent</option>
-                                <option value="points" {{ old('seeding_type', $tournament->seeding_type) == 'points' ? 'selected' : '' }}>Points</option>
-                                <option value="drawing" {{ old('seeding_type', $tournament->seeding_type) == 'drawing' ? 'selected' : '' }}>Random Drawing</option>
+                                <option value="avg_score" {{ old('seeding_type', $tournament->seeding_type) == 'avg_score' ? 'selected' : '' }} x-show="hasQualifiers">Average Score</option>
+                                <option value="mp_percent" {{ old('seeding_type', $tournament->seeding_type) == 'mp_percent' ? 'selected' : '' }} x-show="hasQualifiers">Match Point Percent</option>
+                                <option value="points" {{ old('seeding_type', $tournament->seeding_type) == 'points' ? 'selected' : '' }} x-show="hasQualifiers">Points</option>
+                                <option value="drawing" {{ old('seeding_type', $tournament->seeding_type) == 'drawing' ? 'selected' : '' }} x-show="hasQualifiers">Random Drawing</option>
                             </select>
-                        </div>
-
-                        <div class="flex items-center">
-                            <input type="hidden" name="qualifier_results_public" value="0">
-                            <input type="checkbox" name="qualifier_results_public" id="qualifier_results_public" value="1" {{ old('qualifier_results_public', $tournament->qualifier_results_public) ? 'checked' : '' }}
-                                   class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 rounded focus:ring-pink-500">
-                            <label for="qualifier_results_public" class="ml-2 text-sm font-medium text-slate-300">Make Qualifier Results Public</label>
                         </div>
                     </div>
                 </div>
@@ -557,7 +562,7 @@
                 </div>
             </form>
         </div>
-    @endcan
+    @endif
 </div>
 
 <style>

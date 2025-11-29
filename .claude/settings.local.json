@@ -8,7 +8,8 @@
       "Bash(storage/logs/laravel.log)",
       "WebSearch",
       "WebFetch(domain:osu.ppy.sh)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(php -r:*)"
     ],
     "deny": [],
     "ask": []
