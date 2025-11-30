@@ -3,11 +3,11 @@
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-8">
                 <a href="{{ route('homepage') }}" class="text-xl font-bold bg-gradient-to-r from-pink-500 to-fuchsia-500 bg-clip-text text-transparent">
-                    BracketSync Tournaments
+                    BracketSync
                 </a>
                 <div class="hidden md:flex items-center space-x-6">
-                    <a href="#tournaments" class="text-slate-300 hover:text-pink-500 transition-colors">Tournaments</a>
-                    <a href="#matches" class="text-slate-300 hover:text-pink-500 transition-colors">Matches</a>
+                    <a href="/tournaments" class="text-slate-300 hover:text-pink-500 transition-colors">Tournaments</a>
+                    <a href="/matches" class="text-slate-300 hover:text-pink-500 transition-colors">Matches</a>
                     <a href="{{ route('dashboard.index') }}" class="text-slate-300 hover:text-pink-500 transition-colors">Dashboard</a>
                 </div>
             </div>

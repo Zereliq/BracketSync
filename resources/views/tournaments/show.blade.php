@@ -9,7 +9,7 @@
 
 @section('content')
 @if($isDashboard)
-    <div class="max-w-5xl mx-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="mb-8">
             <div class="flex items-center space-x-4 mb-4">
                 <a href="{{ route('dashboard.tournaments.index') }}" class="text-slate-400 hover:text-white">
@@ -69,7 +69,7 @@
     </div>
 @else
     <div class="min-h-screen bg-slate-950 py-12">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="mb-8">
                 <div class="flex items-center justify-between mb-4">
                     <div>

@@ -129,6 +129,14 @@
                             </svg>
                             <span class="font-medium">All Tournaments</span>
                         </a>
+
+                        <a href="{{ route('dashboard.admin.queue.index') }}"
+                           class="flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all {{ request()->routeIs('dashboard.admin.queue.*') ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white' }}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"></path>
+                            </svg>
+                            <span class="font-medium">Queue Management</span>
+                        </a>
                     </div>
                 </div>
                 @endif

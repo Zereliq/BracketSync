@@ -146,7 +146,7 @@
                     </div>
                     <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
                         <p class="text-sm text-slate-400 mb-1">Bracket Size</p>
-                        <p class="text-white font-semibold text-lg">{{ $tournament->bracket_size }} teams</p>
+                        <p class="text-white font-semibold text-lg">{{ $tournament->bracket_size }} {{ $tournament->isTeamTournament() ? 'teams' : 'players' }}</p>
                     </div>
                     <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
                         <p class="text-sm text-slate-400 mb-1">Elimination Type</p>
@@ -396,12 +396,15 @@
                                 <label for="bracket_size" class="block text-sm font-medium text-slate-300 mb-2">Bracket Size *</label>
                                 <select name="bracket_size" id="bracket_size" required
                                         class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent">
+                                    @php
+                                        $participantType = $tournament->isTeamTournament() ? 'teams' : 'players';
+                                    @endphp
                                     <option value="">Select size</option>
-                                    <option value="8" {{ old('bracket_size', $tournament->bracket_size) == '8' ? 'selected' : '' }}>8 teams</option>
-                                    <option value="16" {{ old('bracket_size', $tournament->bracket_size) == '16' ? 'selected' : '' }}>16 teams</option>
-                                    <option value="32" {{ old('bracket_size', $tournament->bracket_size) == '32' ? 'selected' : '' }}>32 teams</option>
-                                    <option value="64" {{ old('bracket_size', $tournament->bracket_size) == '64' ? 'selected' : '' }}>64 teams</option>
-                                    <option value="128" {{ old('bracket_size', $tournament->bracket_size) == '128' ? 'selected' : '' }}>128 teams</option>
+                                    <option value="8" {{ old('bracket_size', $tournament->bracket_size) == '8' ? 'selected' : '' }}>8 {{ $participantType }}</option>
+                                    <option value="16" {{ old('bracket_size', $tournament->bracket_size) == '16' ? 'selected' : '' }}>16 {{ $participantType }}</option>
+                                    <option value="32" {{ old('bracket_size', $tournament->bracket_size) == '32' ? 'selected' : '' }}>32 {{ $participantType }}</option>
+                                    <option value="64" {{ old('bracket_size', $tournament->bracket_size) == '64' ? 'selected' : '' }}>64 {{ $participantType }}</option>
+                                    <option value="128" {{ old('bracket_size', $tournament->bracket_size) == '128' ? 'selected' : '' }}>128 {{ $participantType }}</option>
                                 </select>
                                 <div class="mt-3 flex items-center">
                                     <input type="hidden" name="auto_bracket_size" value="0">

@@ -7,8 +7,10 @@ use App\Http\Requests\UpdateTournamentRequest;
 use App\Models\Tournament;
 use App\Models\TournamentRoleUser;
 use App\Models\User;
+use App\Services\BracketGenerationService;
 use App\Services\TournamentRoleService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class TournamentController extends Controller
@@ -151,11 +153,94 @@ class TournamentController extends Controller
                 ->with('error', $response->message());
         }
 
+        $bracketService = new BracketGenerationService;
+        $canGenerate = $bracketService->canGenerateBracket($tournament);
+
         return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'bracket',
             'isDashboard' => true,
+            'canGenerateBracket' => $canGenerate['can_generate'],
+            'generationErrors' => $canGenerate['errors'],
+            'needsCustomSeeding' => $bracketService->needsCustomSeeding($tournament),
         ]);
+    }
+
+    /**
+     * Generate the bracket for the tournament.
+     */
+    public function generateBracket(Tournament $tournament, BracketGenerationService $bracketService): mixed
+    {
+        $this->authorize('editBracket', $tournament);
+
+        $validation = $bracketService->canGenerateBracket($tournament);
+
+        if (! $validation['can_generate']) {
+            return back()->with('error', implode(' ', $validation['errors']));
+        }
+
+        // Check if custom seeding is needed
+        if ($bracketService->needsCustomSeeding($tournament)) {
+            return redirect()->route('dashboard.tournaments.bracket.seeding', $tournament)
+                ->with('info', 'Please configure the seeding order before generating the bracket.');
+        }
+
+        // Generate bracket
+        $success = $bracketService->generateBracket($tournament);
+
+        if ($success) {
+            return redirect()->route('dashboard.tournaments.bracket', $tournament)
+                ->with('success', 'Bracket generated successfully!');
+        }
+
+        return back()->with('error', 'Failed to generate bracket. Please try again.');
+    }
+
+    /**
+     * Show the custom seeding configuration page.
+     */
+    public function showSeeding(Tournament $tournament): mixed
+    {
+        $this->authorize('editBracket', $tournament);
+
+        $isTeamTournament = $tournament->isTeamTournament();
+
+        if ($isTeamTournament) {
+            $participants = $tournament->teams()->with('members')->get();
+        } else {
+            $participants = $tournament->registeredPlayers()->with('user')->get();
+        }
+
+        return view('dashboard.tournaments.seeding', [
+            'tournament' => $tournament,
+            'participants' => $participants,
+            'isTeamTournament' => $isTeamTournament,
+        ]);
+    }
+
+    /**
+     * Generate bracket with custom seeding order.
+     */
+    public function generateBracketWithSeeding(Request $request, Tournament $tournament, BracketGenerationService $bracketService): mixed
+    {
+        $this->authorize('editBracket', $tournament);
+
+        $request->validate([
+            'seeding_order' => 'required|array',
+            'seeding_order.*' => 'required|integer',
+        ]);
+
+        $seedingOrder = $request->input('seeding_order');
+
+        // Generate bracket with custom seeding
+        $success = $bracketService->generateBracket($tournament, $seedingOrder);
+
+        if ($success) {
+            return redirect()->route('dashboard.tournaments.bracket', $tournament)
+                ->with('success', 'Bracket generated successfully with custom seeding!');
+        }
+
+        return back()->with('error', 'Failed to generate bracket. Please try again.');
     }
 
     /**
@@ -409,9 +494,17 @@ class TournamentController extends Controller
 
         $roles = $tournament->customRoles()->with('permissions')->get();
 
+        // Check if a Host already exists
+        $hasHost = TournamentRoleUser::where('tournament_id', $tournament->id)
+            ->whereHas('role', function ($query) {
+                $query->where('name', 'Host');
+            })
+            ->exists();
+
         return view('dashboard.tournaments.add-staff', [
             'tournament' => $tournament,
             'roles' => $roles,
+            'hasHost' => $hasHost,
         ]);
     }
 
@@ -437,6 +530,24 @@ class TournamentController extends Controller
             return back()
                 ->withInput()
                 ->with('error', 'User not found. They must have logged in at least once.');
+        }
+
+        // Get the role being assigned
+        $role = \App\Models\TournamentRole::find(request('role_id'));
+
+        // Check if trying to add a second Host
+        if ($role && $role->name === 'Host') {
+            $existingHost = TournamentRoleUser::where('tournament_id', $tournament->id)
+                ->whereHas('role', function ($query) {
+                    $query->where('name', 'Host');
+                })
+                ->exists();
+
+            if ($existingHost) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'Only one Host can be assigned to a tournament. Remove the existing Host first if you want to assign a new one.');
+            }
         }
 
         // Check if user already has this role

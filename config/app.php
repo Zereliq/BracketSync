@@ -43,6 +43,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | cURL SSL Verification
+    |--------------------------------------------------------------------------
+    |
+    | This value determines whether SSL certificates should be verified when
+    | making HTTP requests. Set to false for local development if you
+    | encounter SSL certificate errors. Should always be true in production.
+    |
+    */
+
+    'curl_verify_ssl' => env('CURL_VERIFY_SSL', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

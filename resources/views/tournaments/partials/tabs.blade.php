@@ -98,22 +98,20 @@
 
 <div class="mb-6">
     <div class="border-b border-slate-800">
-        <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <nav class="flex space-x-2 min-w-max" aria-label="Tournament tabs">
-                @foreach($tabs as $tab)
-                    @php
-                        $isActive = $currentTab === $tab['key'];
-                        $routeName = $routePrefix . $tab['route'];
-                    @endphp
-                    <a href="{{ route($routeName, $tournament) }}"
-                       class="flex items-center space-x-2 px-5 py-3.5 font-medium text-sm rounded-t-lg transition-all border-b-2 whitespace-nowrap {{ $isActive ? 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500' : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border-transparent' }}">
-                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $tab['icon'] }}"></path>
-                        </svg>
-                        <span>{{ $tab['label'] }}</span>
-                    </a>
-                @endforeach
-            </nav>
-        </div>
+        <nav class="flex justify-center space-x-2" aria-label="Tournament tabs">
+            @foreach($tabs as $tab)
+                @php
+                    $isActive = $currentTab === $tab['key'];
+                    $routeName = $routePrefix . $tab['route'];
+                @endphp
+                <a href="{{ route($routeName, $tournament) }}"
+                   class="flex items-center space-x-2 px-5 py-3.5 font-medium text-sm rounded-t-lg transition-all border-b-2 whitespace-nowrap {{ $isActive ? 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500' : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border-transparent' }}">
+                    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $tab['icon'] }}"></path>
+                    </svg>
+                    <span>{{ $tab['label'] }}</span>
+                </a>
+            @endforeach
+        </nav>
     </div>
 </div>

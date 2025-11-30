@@ -73,6 +73,9 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
     Route::prefix('tournaments/{tournament}')->name('tournaments.')->group(function () {
         Route::get('/', [TournamentController::class, 'show'])->name('show');
         Route::get('/bracket', [TournamentController::class, 'bracket'])->name('bracket');
+        Route::post('/bracket/generate', [TournamentController::class, 'generateBracket'])->name('bracket.generate');
+        Route::get('/bracket/seeding', [TournamentController::class, 'showSeeding'])->name('bracket.seeding');
+        Route::post('/bracket/seeding', [TournamentController::class, 'generateBracketWithSeeding'])->name('bracket.seeding.generate');
         Route::post('/publish', [TournamentController::class, 'publish'])->name('publish');
         Route::get('/staff', [TournamentController::class, 'staff'])->name('staff');
         Route::get('/staff/add', [TournamentController::class, 'addStaff'])->name('staff.add');
@@ -101,6 +104,12 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::get('/qualifiers/search-users', [TournamentQualifiersController::class, 'searchUsers'])->name('qualifiers.search-users');
         Route::get('/matches', [TournamentController::class, 'matches'])->name('matches');
         Route::get('/mappools', [TournamentController::class, 'mappools'])->name('mappools');
+        Route::get('/mappools/create', [\App\Http\Controllers\MappoolController::class, 'create'])->name('mappools.create');
+        Route::post('/mappools', [\App\Http\Controllers\MappoolController::class, 'store'])->name('mappools.store');
+        Route::get('/mappools/{mappool}/edit', [\App\Http\Controllers\MappoolController::class, 'edit'])->name('mappools.edit');
+        Route::post('/mappools/{mappool}/maps', [\App\Http\Controllers\MappoolController::class, 'addMap'])->name('mappools.maps.add');
+        Route::delete('/mappools/{mappool}/maps/{mappoolMap}', [\App\Http\Controllers\MappoolController::class, 'removeMap'])->name('mappools.maps.remove');
+        Route::delete('/mappools/{mappool}', [\App\Http\Controllers\MappoolController::class, 'destroy'])->name('mappools.destroy');
     });
 
     Route::resource('matches', MatchController::class)->only(['index', 'show']);
@@ -139,4 +148,17 @@ Route::middleware(['web', 'auth', 'can:admin'])->prefix('dashboard/admin')->name
     Route::get('/users', [UserRoleController::class, 'index'])->name('users.index');
     Route::patch('/users/{user}/role', [UserRoleController::class, 'update'])->name('users.role.update');
     Route::get('/tournaments', [TournamentAdminController::class, 'index'])->name('tournaments.index');
+
+    // Queue Management
+    Route::get('/queue', [\App\Http\Controllers\Admin\QueueManagementController::class, 'index'])->name('queue.index');
+    Route::post('/queue/pause', [\App\Http\Controllers\Admin\QueueManagementController::class, 'pause'])->name('queue.pause');
+    Route::post('/queue/resume', [\App\Http\Controllers\Admin\QueueManagementController::class, 'resume'])->name('queue.resume');
+    Route::post('/queue/restart', [\App\Http\Controllers\Admin\QueueManagementController::class, 'restart'])->name('queue.restart');
+    Route::post('/queue/work', [\App\Http\Controllers\Admin\QueueManagementController::class, 'work'])->name('queue.work');
+    Route::post('/queue/retry/{id}', [\App\Http\Controllers\Admin\QueueManagementController::class, 'retry'])->name('queue.retry');
+    Route::post('/queue/retry-all', [\App\Http\Controllers\Admin\QueueManagementController::class, 'retryAll'])->name('queue.retry-all');
+    Route::delete('/queue/jobs/{id}', [\App\Http\Controllers\Admin\QueueManagementController::class, 'deleteJob'])->name('queue.delete');
+    Route::delete('/queue/failed/{id}', [\App\Http\Controllers\Admin\QueueManagementController::class, 'deleteFailed'])->name('queue.delete-failed');
+    Route::post('/queue/flush', [\App\Http\Controllers\Admin\QueueManagementController::class, 'flush'])->name('queue.flush');
+    Route::post('/queue/clear', [\App\Http\Controllers\Admin\QueueManagementController::class, 'clear'])->name('queue.clear');
 });

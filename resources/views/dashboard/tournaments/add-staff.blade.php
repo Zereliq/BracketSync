@@ -124,11 +124,25 @@
                     class="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:border-transparent">
                 <option value="">Select a role</option>
                 @foreach($roles as $role)
-                    <option value="{{ $role->id }}" {{ old('role_id') == $role->id ? 'selected' : '' }}>
-                        {{ $role->name }}
-                    </option>
+                    @if($role->name === 'Host' && $hasHost)
+                        <option value="{{ $role->id }}" disabled class="text-slate-500">
+                            {{ $role->name }} (Already assigned)
+                        </option>
+                    @else
+                        <option value="{{ $role->id }}" {{ old('role_id') == $role->id ? 'selected' : '' }}>
+                            {{ $role->name }}
+                        </option>
+                    @endif
                 @endforeach
             </select>
+            @if($hasHost)
+                <p class="mt-2 text-sm text-yellow-400">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Only one Host can be assigned per tournament.
+                </p>
+            @endif
         </div>
 
         <div class="flex items-center justify-between pt-4 border-t border-slate-800">
