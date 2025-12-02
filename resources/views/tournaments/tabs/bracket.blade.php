@@ -67,7 +67,11 @@
             </div>
 
             @php
-                $matches = $tournament->matches()->orderBy('round')->orderBy('id')->get();
+                $matches = $tournament->matches()
+                    ->with(['team1', 'team2', 'player1', 'player2'])
+                    ->orderBy('round')
+                    ->orderBy('id')
+                    ->get();
                 $rounds = $matches->groupBy('round');
                 $totalRounds = $rounds->count();
             @endphp
@@ -100,14 +104,14 @@
                                         {{-- Participant 1 --}}
                                         <div class="flex items-center justify-between p-3 border-b border-slate-700 {{ $match->winner_team_id == $match->team1_id ? 'bg-green-500/10' : '' }}">
                                             <div class="flex items-center space-x-2 flex-1 min-w-0">
+                                                @if($match->team1_seed)
+                                                    <span class="text-xs font-bold text-slate-400 flex-shrink-0 w-6">#{{ $match->team1_seed }}</span>
+                                                @endif
                                                 @if($match->team1_id)
                                                     @if($tournament->isTeamTournament())
-                                                        <span class="text-white font-medium truncate">{{ $match->team1->name ?? 'TBD' }}</span>
+                                                        <span class="text-white font-medium truncate">{{ $match->team1->teamname ?? 'TBD' }}</span>
                                                     @else
-                                                        @php
-                                                            $player1 = \App\Models\User::find($match->team1_id);
-                                                        @endphp
-                                                        <span class="text-white font-medium truncate">{{ $player1->name ?? 'TBD' }}</span>
+                                                        <span class="text-white font-medium truncate">{{ $match->player1->name ?? 'TBD' }}</span>
                                                     @endif
                                                 @else
                                                     <span class="text-slate-500 italic">TBD</span>
@@ -123,14 +127,14 @@
                                         {{-- Participant 2 --}}
                                         <div class="flex items-center justify-between p-3 {{ $match->winner_team_id == $match->team2_id ? 'bg-green-500/10' : '' }}">
                                             <div class="flex items-center space-x-2 flex-1 min-w-0">
+                                                @if($match->team2_seed)
+                                                    <span class="text-xs font-bold text-slate-400 flex-shrink-0 w-6">#{{ $match->team2_seed }}</span>
+                                                @endif
                                                 @if($match->team2_id)
                                                     @if($tournament->isTeamTournament())
-                                                        <span class="text-white font-medium truncate">{{ $match->team2->name ?? 'TBD' }}</span>
+                                                        <span class="text-white font-medium truncate">{{ $match->team2->teamname ?? 'TBD' }}</span>
                                                     @else
-                                                        @php
-                                                            $player2 = \App\Models\User::find($match->team2_id);
-                                                        @endphp
-                                                        <span class="text-white font-medium truncate">{{ $player2->name ?? 'TBD' }}</span>
+                                                        <span class="text-white font-medium truncate">{{ $match->player2->name ?? 'TBD' }}</span>
                                                     @endif
                                                 @else
                                                     <span class="text-slate-500 italic">TBD</span>

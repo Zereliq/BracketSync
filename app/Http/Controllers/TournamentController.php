@@ -389,16 +389,90 @@ class TournamentController extends Controller
         }
 
         $tournament->load([
-            'matches.teams',
+            'matches.team1',
+            'matches.team2',
+            'matches.player1',
+            'matches.player2',
+            'matches.winner',
             'matches.referee',
+            'matches.mappool',
+            'matches.games',
+            'matches.rolls.team',
         ]);
+
+        // Get filter parameters
+        $selectedRound = request()->query('round');
+        $myMatches = request()->query('my_matches') === 'true';
+
+        $matches = $tournament->matches;
+
+        // Filter by user's matches (as player/team member or referee)
+        if ($myMatches && auth()->check()) {
+            $user = auth()->user();
+            $matches = $matches->filter(function ($match) use ($user, $tournament) {
+                // Check if user is the referee
+                if ($match->referee_id === $user->id) {
+                    return true;
+                }
+
+                // Check if user is in team1 or team2
+                if ($tournament->isTeamTournament()) {
+                    $userTeams = $user->teams()->where('tournament_id', $tournament->id)->pluck('id');
+
+                    return $userTeams->contains($match->team1_id) || $userTeams->contains($match->team2_id);
+                } else {
+                    // For 1v1 tournaments, check if user is team1 or team2
+                    return $match->team1_id === $user->id || $match->team2_id === $user->id;
+                }
+            });
+        }
+
+        // Filter by selected round
+        if ($selectedRound !== null) {
+            $matches = $matches->where('round', (int) $selectedRound);
+        }
+
+        // Group matches by round and determine round names
+        $matchesByRound = $tournament->matches->groupBy('round')->sortKeys();
+        $totalRounds = $matchesByRound->count();
+        $rounds = [];
+
+        foreach ($matchesByRound as $roundNumber => $roundMatches) {
+            $rounds[] = [
+                'number' => $roundNumber,
+                'name' => $this->getRoundName($roundNumber, $totalRounds, $tournament->bracket_size),
+                'count' => $roundMatches->count(),
+            ];
+        }
 
         return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'matches',
-            'matches' => $tournament->matches,
+            'matches' => $matches,
+            'rounds' => $rounds,
+            'selectedRound' => $selectedRound,
+            'myMatches' => $myMatches,
             'isDashboard' => true,
         ]);
+    }
+
+    /**
+     * Get the display name for a round based on bracket size.
+     */
+    protected function getRoundName(int $round, int $totalRounds, int $bracketSize): string
+    {
+        $roundsFromEnd = $totalRounds - $round + 1;
+
+        return match ($roundsFromEnd) {
+            1 => 'Finals',
+            2 => 'Semi-Finals',
+            3 => 'Quarter-Finals',
+            4 => 'Round of 16',
+            5 => 'Round of 32',
+            6 => 'Round of 64',
+            7 => 'Round of 128',
+            default => "Round {$round}",
+        };
     }
 
     /**
@@ -722,5 +796,55 @@ class TournamentController extends Controller
         $invitation->decline();
 
         return back()->with('success', 'Staff invitation declined.');
+    }
+
+    /**
+     * Update match settings for all matches in specified rounds.
+     */
+    public function updateRoundSettings(Request $request, Tournament $tournament): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        $request->validate([
+            'rounds' => 'required|array',
+            'rounds.*.best_of' => 'nullable|integer|in:1,3,5,7,9,11,13',
+            'rounds.*.mappool_id' => 'nullable|exists:mappools,id',
+        ]);
+
+        foreach ($request->rounds as $roundNumber => $settings) {
+            MatchModel::where('tournament_id', $tournament->id)
+                ->where('round', $roundNumber)
+                ->update([
+                    'best_of' => $settings['best_of'] ?: null,
+                    'mappool_id' => $settings['mappool_id'] ?: null,
+                ]);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Fill match result (set winner).
+     */
+    public function fillMatchResult(Request $request, Tournament $tournament): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'winner_id' => 'required',
+        ]);
+
+        $match = MatchModel::where('id', $request->match_id)
+            ->where('tournament_id', $tournament->id)
+            ->firstOrFail();
+
+        $match->update([
+            'winner_team_id' => $request->winner_id,
+            'status' => 'completed',
+            'match_end' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
     }
 }

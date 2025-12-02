@@ -9,7 +9,11 @@
       "WebSearch",
       "WebFetch(domain:osu.ppy.sh)",
       "WebFetch(domain:github.com)",
-      "Bash(php -r:*)"
+      "Bash(php -r:*)",
+      "Bash(php check_seeds.php:*)",
+      "Bash(php backfill_seeds.php:*)",
+      "Bash(del check_seeds.php backfill_seeds.php)",
+      "Bash(php debug_matches.php:*)"
     ],
     "deny": [],
     "ask": []

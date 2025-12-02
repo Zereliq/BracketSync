@@ -135,9 +135,19 @@ class BracketGenerationService
             case 'avg_score':
             case 'mp_percent':
             case 'points':
-                // These would require qualifier results to be calculated
+                // These seeding types use qualifier results
+                // Order participants by their qualifier performance (descending)
+                // TODO: Implement proper qualifier result calculation
                 // For now, return by rank as fallback
-                return $query->get();
+                if ($isTeamTournament) {
+                    return $query->get()->sortBy(function ($team) {
+                        $avgRank = $team->members->avg(fn ($member) => $member->user->rank ?? 999999);
+
+                        return $avgRank;
+                    })->values();
+                } else {
+                    return $query->get()->sortBy(fn ($p) => $p->user->rank ?? 999999)->values();
+                }
 
             case 'drawing':
                 // Random seeding
@@ -174,8 +184,10 @@ class BracketGenerationService
         foreach ($pairings as $pairing) {
             MatchModel::create([
                 'tournament_id' => $tournament->id,
-                'team1_id' => $isTeamTournament ? ($pairing[0]->id ?? null) : ($pairing[0]->user_id ?? null),
-                'team2_id' => $isTeamTournament ? ($pairing[1]->id ?? null) : ($pairing[1]->user_id ?? null),
+                'team1_id' => $isTeamTournament ? ($pairing['participant1']->id ?? null) : ($pairing['participant1']->user_id ?? null),
+                'team2_id' => $isTeamTournament ? ($pairing['participant2']->id ?? null) : ($pairing['participant2']->user_id ?? null),
+                'team1_seed' => $pairing['seed1'],
+                'team2_seed' => $pairing['seed2'],
                 'round' => $round,
                 'stage' => 'bracket',
                 'status' => 'pending',
@@ -243,7 +255,12 @@ class BracketGenerationService
             $p2 = $seed2 <= $count ? $participants[$seed2 - 1] : null;
 
             if ($p1 || $p2) {
-                $pairings[] = [$p1, $p2];
+                $pairings[] = [
+                    'participant1' => $p1,
+                    'participant2' => $p2,
+                    'seed1' => $seed1,
+                    'seed2' => $seed2,
+                ];
             }
         }
 
@@ -252,19 +269,52 @@ class BracketGenerationService
 
     /**
      * Get standard single elimination matchups for first round.
+     * Uses proper tournament seeding to ensure top seeds meet in finals.
      */
     protected function getSingleElimMatchups(int $bracketSize): array
     {
-        // Standard seeding: 1v16, 8v9, 5v12, 4v13, 6v11, 3v14, 7v10, 2v15 (for 16)
-        // Generalized for any power of 2
-        $matchups = [];
-        $half = $bracketSize / 2;
+        // Proper tournament seeding ensures:
+        // - Seed 1 and 2 are in opposite halves (can only meet in finals)
+        // - Top seeds are distributed optimally throughout the bracket
+        //
+        // For 8: 1v8, 4v5, 2v7, 3v6
+        // For 16: 1v16, 8v9, 4v13, 5v12, 2v15, 7v10, 3v14, 6v11
+        // For 32: Similar pattern extended
 
-        for ($i = 1; $i <= $half; $i++) {
-            $matchups[] = [$i, $bracketSize - $i + 1];
+        $matchups = [];
+        $seeds = range(1, $bracketSize);
+
+        // Generate proper bracket seeding using recursive pairing
+        $orderedSeeds = $this->generateBracketSeeding($bracketSize);
+
+        // Pair adjacent seeds in the ordered list
+        for ($i = 0; $i < count($orderedSeeds); $i += 2) {
+            $matchups[] = [$orderedSeeds[$i], $orderedSeeds[$i + 1]];
         }
 
         return $matchups;
+    }
+
+    /**
+     * Generate proper bracket seeding order recursively.
+     * This ensures top seeds are optimally distributed.
+     */
+    protected function generateBracketSeeding(int $bracketSize): array
+    {
+        if ($bracketSize === 2) {
+            return [1, 2];
+        }
+
+        // Recursively build the seeding
+        $previousRound = $this->generateBracketSeeding($bracketSize / 2);
+        $currentRound = [];
+
+        foreach ($previousRound as $seed) {
+            $currentRound[] = $seed;
+            $currentRound[] = $bracketSize + 1 - $seed;
+        }
+
+        return $currentRound;
     }
 
     /**

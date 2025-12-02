@@ -15,10 +15,13 @@ class MatchModel extends Model
         'tournament_id',
         'mappool_id',
         'team1_id',
+        'team1_seed',
         'team2_id',
+        'team2_seed',
         'winner_team_id',
         'round',
         'stage',
+        'best_of',
         'status',
         'scheduled_at',
         'match_start',
@@ -50,6 +53,16 @@ class MatchModel extends Model
     public function team2()
     {
         return $this->belongsTo(Team::class, 'team2_id');
+    }
+
+    public function player1()
+    {
+        return $this->belongsTo(User::class, 'team1_id');
+    }
+
+    public function player2()
+    {
+        return $this->belongsTo(User::class, 'team2_id');
     }
 
     public function winner()
