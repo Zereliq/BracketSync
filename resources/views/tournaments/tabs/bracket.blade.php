@@ -33,8 +33,8 @@
             @endif
         </div>
 
-        {{-- Generation Errors Display (only show after generation attempt) --}}
-        @if(!empty($generationErrors))
+        {{-- Generation Errors Display (only show when bracket hasn't been generated yet) --}}
+        @if(!empty($generationErrors) && !$tournament->matches()->exists())
             <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
                 <div class="flex items-start space-x-3">
                     <svg class="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
