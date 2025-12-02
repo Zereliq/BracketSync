@@ -67,7 +67,9 @@ class MappoolController extends Controller
                 ->with('error', 'You do not have permission to edit mappools.');
         }
 
-        $mappool->load(['maps.map']);
+        $mappool->load(['maps' => function ($query) {
+            $query->orderBy('slot');
+        }, 'maps.map']);
 
         return view('dashboard.tournaments.mappools.edit', [
             'tournament' => $tournament,
@@ -87,7 +89,7 @@ class MappoolController extends Controller
         $request->validate([
             'beatmap_id' => 'required|integer',
             'mod_type' => 'required|in:NM,HD,HR,DT,FM,TB',
-            'slot' => 'required|string|max:10',
+            'slot' => 'required|integer|min:1',
         ]);
 
         // Fetch beatmap data from osu! API

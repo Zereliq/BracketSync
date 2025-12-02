@@ -22,6 +22,12 @@ class Map extends Model
         'length_seconds',
         'mapper',
         'beatmap_url',
+        'cover_url',
+        'bpm',
+        'cs',
+        'ar',
+        'od',
+        'hp',
     ];
 
     public function mappoolMaps()

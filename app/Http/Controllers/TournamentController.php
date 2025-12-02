@@ -9,6 +9,7 @@ use App\Models\TournamentRoleUser;
 use App\Models\User;
 use App\Services\BracketGenerationService;
 use App\Services\TournamentRoleService;
+use App\Traits\LoadsTournamentMatches;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 class TournamentController extends Controller
 {
     use AuthorizesRequests;
+    use LoadsTournamentMatches;
 
     /**
      * Display a listing of tournaments created by the authenticated user.
@@ -388,91 +390,14 @@ class TournamentController extends Controller
                 ->with('error', $response->message());
         }
 
-        $tournament->load([
-            'matches.team1',
-            'matches.team2',
-            'matches.player1',
-            'matches.player2',
-            'matches.winner',
-            'matches.referee',
-            'matches.mappool',
-            'matches.games',
-            'matches.rolls.team',
-        ]);
-
-        // Get filter parameters
-        $selectedRound = request()->query('round');
-        $myMatches = request()->query('my_matches') === 'true';
-
-        $matches = $tournament->matches;
-
-        // Filter by user's matches (as player/team member or referee)
-        if ($myMatches && auth()->check()) {
-            $user = auth()->user();
-            $matches = $matches->filter(function ($match) use ($user, $tournament) {
-                // Check if user is the referee
-                if ($match->referee_id === $user->id) {
-                    return true;
-                }
-
-                // Check if user is in team1 or team2
-                if ($tournament->isTeamTournament()) {
-                    $userTeams = $user->teams()->where('tournament_id', $tournament->id)->pluck('id');
-
-                    return $userTeams->contains($match->team1_id) || $userTeams->contains($match->team2_id);
-                } else {
-                    // For 1v1 tournaments, check if user is team1 or team2
-                    return $match->team1_id === $user->id || $match->team2_id === $user->id;
-                }
-            });
-        }
-
-        // Filter by selected round
-        if ($selectedRound !== null) {
-            $matches = $matches->where('round', (int) $selectedRound);
-        }
-
-        // Group matches by round and determine round names
-        $matchesByRound = $tournament->matches->groupBy('round')->sortKeys();
-        $totalRounds = $matchesByRound->count();
-        $rounds = [];
-
-        foreach ($matchesByRound as $roundNumber => $roundMatches) {
-            $rounds[] = [
-                'number' => $roundNumber,
-                'name' => $this->getRoundName($roundNumber, $totalRounds, $tournament->bracket_size),
-                'count' => $roundMatches->count(),
-            ];
-        }
+        $matchData = $this->loadTournamentMatches($tournament);
 
         return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'matches',
-            'matches' => $matches,
-            'rounds' => $rounds,
-            'selectedRound' => $selectedRound,
-            'myMatches' => $myMatches,
             'isDashboard' => true,
+            ...$matchData,
         ]);
-    }
-
-    /**
-     * Get the display name for a round based on bracket size.
-     */
-    protected function getRoundName(int $round, int $totalRounds, int $bracketSize): string
-    {
-        $roundsFromEnd = $totalRounds - $round + 1;
-
-        return match ($roundsFromEnd) {
-            1 => 'Finals',
-            2 => 'Semi-Finals',
-            3 => 'Quarter-Finals',
-            4 => 'Round of 16',
-            5 => 'Round of 32',
-            6 => 'Round of 64',
-            7 => 'Round of 128',
-            default => "Round {$round}",
-        };
     }
 
     /**
@@ -544,7 +469,9 @@ class TournamentController extends Controller
         }
 
         $tournament->load([
-            'mappools.maps',
+            'mappools.maps' => function ($query) {
+                $query->orderBy('slot');
+            },
         ]);
 
         return view('tournaments.show', [

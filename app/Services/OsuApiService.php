@@ -91,6 +91,11 @@ class OsuApiService
                     'mapper' => $data['beatmapset']['creator'] ?? null,
                     'beatmap_url' => "https://osu.ppy.sh/beatmaps/{$beatmapId}",
                     'cover_url' => $data['beatmapset']['covers']['cover'] ?? null,
+                    'bpm' => $data['bpm'] ?? null,
+                    'cs' => $data['cs'] ?? null,
+                    'ar' => $data['ar'] ?? null,
+                    'od' => $data['accuracy'] ?? null,
+                    'hp' => $data['drain'] ?? null,
                 ];
             }
         } catch (\Exception $e) {

@@ -13,7 +13,8 @@
       "Bash(php check_seeds.php:*)",
       "Bash(php backfill_seeds.php:*)",
       "Bash(del check_seeds.php backfill_seeds.php)",
-      "Bash(php debug_matches.php:*)"
+      "Bash(php debug_matches.php:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
