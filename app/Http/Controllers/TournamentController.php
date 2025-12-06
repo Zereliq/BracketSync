@@ -4,14 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
+use App\Models\Game;
+use App\Models\MatchModel;
+use App\Models\Score;
 use App\Models\Tournament;
 use App\Models\TournamentRoleUser;
 use App\Models\User;
 use App\Services\BracketGenerationService;
+use App\Services\OsuApiService;
 use App\Services\TournamentRoleService;
 use App\Traits\LoadsTournamentMatches;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class TournamentController extends Controller
@@ -472,12 +477,26 @@ class TournamentController extends Controller
             'mappools.maps' => function ($query) {
                 $query->orderBy('slot');
             },
+            'mappools.matches',
         ]);
+
+        // Determine the current mappool based on upcoming/in-progress matches
+        $currentMappoolId = $tournament->matches()
+            ->whereIn('status', ['scheduled', 'in_progress'])
+            ->whereNotNull('mappool_id')
+            ->orderBy('scheduled_at')
+            ->value('mappool_id');
+
+        // Sort mappools: current first, then by ID
+        $mappools = $tournament->mappools->sortBy(function ($mappool) use ($currentMappoolId) {
+            return $mappool->id === $currentMappoolId ? 0 : 1;
+        })->values();
 
         return view('tournaments.show', [
             'tournament' => $tournament,
             'currentTab' => 'mappools',
-            'mappools' => $tournament->mappools,
+            'mappools' => $mappools,
+            'currentMappoolId' => $currentMappoolId,
             'isDashboard' => true,
         ]);
     }
@@ -751,6 +770,352 @@ class TournamentController extends Controller
     }
 
     /**
+     * Fetch match data from osu! API.
+     */
+    public function fetchOsuMatch(Request $request, Tournament $tournament, OsuApiService $osuApi): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        $request->validate([
+            'match_id' => 'required|integer',
+            'osu_match_id' => 'required|integer',
+        ]);
+
+        $match = MatchModel::where('id', $request->match_id)
+            ->where('tournament_id', $tournament->id)
+            ->with(['team1.members', 'team2.members', 'player1', 'player2', 'mappool.maps.map'])
+            ->firstOrFail();
+
+        $osuMatchData = $osuApi->getMatch($request->osu_match_id);
+
+        if (! $osuMatchData) {
+            return response()->json([
+                'error' => 'Failed to fetch match data from osu! API',
+                'details' => 'Could not connect to osu! API or the match ID is invalid.',
+            ], 400);
+        }
+
+        $validation = $this->validateMatchParticipants($osuMatchData, $match, $tournament);
+
+        if (! $validation['valid']) {
+            return response()->json([
+                'error' => 'Match Participant Validation Failed',
+                'details' => $validation['message'],
+                'issues' => $validation['issues'],
+            ], 422);
+        }
+
+        $mappoolBeatmapIds = collect();
+        if ($match->mappool) {
+            $mappoolBeatmapIds = $match->mappool->maps->pluck('map.osu_beatmap_id')->filter();
+        }
+
+        $processedGames = $this->processOsuMatchGames(
+            $osuMatchData['events'] ?? [],
+            $mappoolBeatmapIds,
+            $match,
+            $tournament
+        );
+
+        if (empty($processedGames['games'])) {
+            return response()->json([
+                'error' => 'No valid games found',
+                'details' => 'No games from the mappool were found in this match, or all games were incomplete.',
+                'issues' => [
+                    'The first 2 warmup maps are automatically excluded',
+                    'Only maps from the assigned mappool are counted',
+                    'Maps where not all players passed are excluded',
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'match' => [
+                'id' => $match->id,
+                'team1' => $tournament->isTeamTournament() ? $match->team1 : $match->player1,
+                'team2' => $tournament->isTeamTournament() ? $match->team2 : $match->player2,
+                'best_of' => $match->best_of,
+            ],
+            'games' => $processedGames['games'],
+            'team1_score' => $processedGames['team1_score'],
+            'team2_score' => $processedGames['team2_score'],
+            'winner_id' => $processedGames['winner_id'],
+        ]);
+    }
+
+    /**
+     * Validate that participants in the osu! match match the expected tournament participants.
+     */
+    private function validateMatchParticipants(array $osuMatchData, MatchModel $match, Tournament $tournament): array
+    {
+        $gameEvents = collect($osuMatchData['events'] ?? [])
+            ->filter(fn ($event) => ($event['detail']['type'] ?? null) === 'other');
+
+        if ($gameEvents->isEmpty()) {
+            return [
+                'valid' => false,
+                'message' => 'No games were found in this osu! match.',
+                'issues' => ['The match may not have started yet, or no games have been played.'],
+            ];
+        }
+
+        $allPlayerIds = collect();
+        foreach ($gameEvents as $event) {
+            $game = $event['game'] ?? null;
+            if (! $game) {
+                continue;
+            }
+
+            $scores = collect($game['scores'] ?? []);
+            $playerIds = $scores->pluck('user_id')->filter();
+            $allPlayerIds = $allPlayerIds->merge($playerIds);
+        }
+
+        $allPlayerIds = $allPlayerIds->unique()->values();
+
+        if ($allPlayerIds->isEmpty()) {
+            return [
+                'valid' => false,
+                'message' => 'No players found in the osu! match data.',
+                'issues' => ['The match data may be corrupted or incomplete.'],
+            ];
+        }
+
+        $issues = [];
+        $isTeamTournament = $tournament->isTeamTournament();
+
+        if ($isTeamTournament) {
+            if (! $match->team1 || ! $match->team2) {
+                return [
+                    'valid' => false,
+                    'message' => 'Match participants are not yet determined.',
+                    'issues' => ['Both teams must be set before entering results.'],
+                ];
+            }
+
+            $team1Members = $match->team1->members->pluck('id')->toArray();
+            $team2Members = $match->team2->members->pluck('id')->toArray();
+            $expectedPlayers = array_merge($team1Members, $team2Members);
+
+            $team1PlayersFound = collect($allPlayerIds)->filter(fn ($id) => in_array($id, $team1Members));
+            $team2PlayersFound = collect($allPlayerIds)->filter(fn ($id) => in_array($id, $team2Members));
+            $unexpectedPlayers = collect($allPlayerIds)->filter(fn ($id) => ! in_array($id, $expectedPlayers));
+
+            if ($team1PlayersFound->isEmpty()) {
+                $issues[] = "No players from {$match->team1->teamname} were found in this match";
+            }
+
+            if ($team2PlayersFound->isEmpty()) {
+                $issues[] = "No players from {$match->team2->teamname} were found in this match";
+            }
+
+            if ($unexpectedPlayers->isNotEmpty()) {
+                $unexpectedUsernames = User::whereIn('id', $unexpectedPlayers)->pluck('username')->toArray();
+                $issues[] = 'Found '.count($unexpectedPlayers).' unexpected player(s): '.implode(', ', $unexpectedUsernames);
+            }
+
+            if ($team1PlayersFound->isEmpty() && $team2PlayersFound->isEmpty()) {
+                return [
+                    'valid' => false,
+                    'message' => 'None of the expected players were found in this match.',
+                    'issues' => array_merge($issues, ['This appears to be a different match. Please verify the match ID.']),
+                ];
+            }
+
+            if (! empty($issues)) {
+                return [
+                    'valid' => false,
+                    'message' => 'Player mismatch detected in the osu! match.',
+                    'issues' => array_merge($issues, ['Please verify this is the correct match ID.']),
+                ];
+            }
+        } else {
+            if (! $match->team1_id || ! $match->team2_id) {
+                return [
+                    'valid' => false,
+                    'message' => 'Match participants are not yet determined.',
+                    'issues' => ['Both players must be set before entering results.'],
+                ];
+            }
+
+            $expectedPlayers = [$match->team1_id, $match->team2_id];
+
+            $player1Found = $allPlayerIds->contains($match->team1_id);
+            $player2Found = $allPlayerIds->contains($match->team2_id);
+            $unexpectedPlayers = $allPlayerIds->filter(fn ($id) => ! in_array($id, $expectedPlayers));
+
+            if (! $player1Found) {
+                $player1Name = $match->player1->username ?? $match->player1->name ?? 'Player 1';
+                $issues[] = "{$player1Name} was not found in this match";
+            }
+
+            if (! $player2Found) {
+                $player2Name = $match->player2->username ?? $match->player2->name ?? 'Player 2';
+                $issues[] = "{$player2Name} was not found in this match";
+            }
+
+            if ($unexpectedPlayers->isNotEmpty()) {
+                $unexpectedUsernames = User::whereIn('id', $unexpectedPlayers)->pluck('username')->toArray();
+                $issues[] = 'Found '.count($unexpectedPlayers).' unexpected player(s): '.implode(', ', $unexpectedUsernames);
+            }
+
+            if (! $player1Found && ! $player2Found) {
+                return [
+                    'valid' => false,
+                    'message' => 'Neither expected player was found in this match.',
+                    'issues' => array_merge($issues, ['This appears to be a different match. Please verify the match ID.']),
+                ];
+            }
+
+            if (! empty($issues)) {
+                return [
+                    'valid' => false,
+                    'message' => 'Player mismatch detected in the osu! match.',
+                    'issues' => array_merge($issues, ['Please verify this is the correct match ID.']),
+                ];
+            }
+        }
+
+        return ['valid' => true];
+    }
+
+    /**
+     * Process osu! match events to extract valid games.
+     */
+    private function processOsuMatchGames(array $events, $mappoolBeatmapIds, MatchModel $match, Tournament $tournament): array
+    {
+        $games = [];
+        $gameEvents = collect($events)->filter(fn ($event) => ($event['detail']['type'] ?? null) === 'other');
+
+        $validGames = $gameEvents->skip(2);
+
+        foreach ($validGames as $index => $event) {
+            $game = $event['game'] ?? null;
+            if (! $game) {
+                continue;
+            }
+
+            $beatmapId = $game['beatmap']['id'] ?? null;
+            if (! $beatmapId || ! $mappoolBeatmapIds->contains($beatmapId)) {
+                continue;
+            }
+
+            $scores = collect($game['scores'] ?? []);
+            if ($scores->isEmpty()) {
+                continue;
+            }
+
+            $allPassed = $scores->every(fn ($score) => ($score['passed'] ?? false) === true);
+            if (! $allPassed) {
+                continue;
+            }
+
+            $mappoolMap = $match->mappool->maps->firstWhere('map.osu_beatmap_id', $beatmapId);
+            if (! $mappoolMap) {
+                continue;
+            }
+
+            $team1Score = 0;
+            $team2Score = 0;
+            $processedScores = [];
+
+            if ($tournament->isTeamTournament()) {
+                $team1UserIds = $match->team1->members->pluck('id')->toArray();
+                $team2UserIds = $match->team2->members->pluck('id')->toArray();
+
+                foreach ($scores as $scoreData) {
+                    $userId = $scoreData['user_id'] ?? null;
+                    $scoreValue = $scoreData['score'] ?? 0;
+
+                    if (in_array($userId, $team1UserIds)) {
+                        $team1Score += $scoreValue;
+                        $processedScores[] = [
+                            'user_id' => $userId,
+                            'team_id' => $match->team1_id,
+                            'score' => $scoreValue,
+                            'accuracy' => $scoreData['accuracy'] ?? 0,
+                            'combo' => $scoreData['max_combo'] ?? 0,
+                            'passed' => $scoreData['passed'] ?? false,
+                        ];
+                    } elseif (in_array($userId, $team2UserIds)) {
+                        $team2Score += $scoreValue;
+                        $processedScores[] = [
+                            'user_id' => $userId,
+                            'team_id' => $match->team2_id,
+                            'score' => $scoreValue,
+                            'accuracy' => $scoreData['accuracy'] ?? 0,
+                            'combo' => $scoreData['max_combo'] ?? 0,
+                            'passed' => $scoreData['passed'] ?? false,
+                        ];
+                    }
+                }
+            } else {
+                foreach ($scores as $scoreData) {
+                    $userId = $scoreData['user_id'] ?? null;
+                    $scoreValue = $scoreData['score'] ?? 0;
+
+                    if ($userId === $match->team1_id) {
+                        $team1Score = $scoreValue;
+                        $processedScores[] = [
+                            'user_id' => $userId,
+                            'team_id' => null,
+                            'score' => $scoreValue,
+                            'accuracy' => $scoreData['accuracy'] ?? 0,
+                            'combo' => $scoreData['max_combo'] ?? 0,
+                            'passed' => $scoreData['passed'] ?? false,
+                        ];
+                    } elseif ($userId === $match->team2_id) {
+                        $team2Score = $scoreValue;
+                        $processedScores[] = [
+                            'user_id' => $userId,
+                            'team_id' => null,
+                            'score' => $scoreValue,
+                            'accuracy' => $scoreData['accuracy'] ?? 0,
+                            'combo' => $scoreData['max_combo'] ?? 0,
+                            'passed' => $scoreData['passed'] ?? false,
+                        ];
+                    }
+                }
+            }
+
+            $winningTeamId = $team1Score > $team2Score ? $match->team1_id : $match->team2_id;
+
+            $games[] = [
+                'order_in_match' => $index + 1,
+                'mappool_map_id' => $mappoolMap->id,
+                'map' => $mappoolMap->map,
+                'winning_team_id' => $winningTeamId,
+                'team1_score' => $team1Score,
+                'team2_score' => $team2Score,
+                'scores' => $processedScores,
+            ];
+        }
+
+        $team1Wins = collect($games)->filter(fn ($g) => $g['winning_team_id'] === $match->team1_id)->count();
+        $team2Wins = collect($games)->filter(fn ($g) => $g['winning_team_id'] === $match->team2_id)->count();
+
+        $winnerId = null;
+        if ($match->best_of) {
+            $winsNeeded = ceil($match->best_of / 2);
+            if ($team1Wins >= $winsNeeded) {
+                $winnerId = $match->team1_id;
+            } elseif ($team2Wins >= $winsNeeded) {
+                $winnerId = $match->team2_id;
+            }
+        } else {
+            $winnerId = $team1Wins > $team2Wins ? $match->team1_id : ($team2Wins > $team1Wins ? $match->team2_id : null);
+        }
+
+        return [
+            'games' => $games,
+            'team1_score' => $team1Wins,
+            'team2_score' => $team2Wins,
+            'winner_id' => $winnerId,
+        ];
+    }
+
+    /**
      * Fill match result (set winner).
      */
     public function fillMatchResult(Request $request, Tournament $tournament): mixed
@@ -759,19 +1124,176 @@ class TournamentController extends Controller
 
         $request->validate([
             'match_id' => 'required|exists:matches,id',
-            'winner_id' => 'required',
+            'winner_id' => 'nullable',
+            'games' => 'nullable|array',
+            'games.*.mappool_map_id' => 'required|exists:mappool_maps,id',
+            'games.*.winning_team_id' => 'required',
+            'games.*.scores' => 'required|array',
+            'games.*.scores.*.user_id' => 'required|exists:users,id',
+            'games.*.scores.*.score' => 'required|integer',
+            'games.*.scores.*.accuracy' => 'nullable|numeric',
+            'games.*.scores.*.combo' => 'nullable|integer',
+            'games.*.scores.*.passed' => 'required|boolean',
         ]);
 
         $match = MatchModel::where('id', $request->match_id)
             ->where('tournament_id', $tournament->id)
             ->firstOrFail();
 
-        $match->update([
-            'winner_team_id' => $request->winner_id,
-            'status' => 'completed',
-            'match_end' => now(),
-        ]);
+        DB::transaction(function () use ($request, $match, $tournament) {
+            $oldWinnerId = $match->winner_team_id;
+            $newWinnerId = $request->winner_id;
+
+            $match->games()->each(function ($game) {
+                $game->scores()->delete();
+                $game->delete();
+            });
+
+            if ($request->has('games') && is_array($request->games)) {
+                foreach ($request->games as $index => $gameData) {
+                    $game = Game::create([
+                        'match_id' => $match->id,
+                        'mappool_map_id' => $gameData['mappool_map_id'],
+                        'order_in_match' => $index + 1,
+                        'winning_team_id' => $gameData['winning_team_id'],
+                    ]);
+
+                    foreach ($gameData['scores'] as $scoreData) {
+                        Score::create([
+                            'game_id' => $game->id,
+                            'user_id' => $scoreData['user_id'],
+                            'team_id' => $scoreData['team_id'] ?? null,
+                            'score' => $scoreData['score'],
+                            'accuracy' => $scoreData['accuracy'] ?? null,
+                            'combo' => $scoreData['combo'] ?? null,
+                            'passed' => $scoreData['passed'],
+                        ]);
+                    }
+                }
+            }
+
+            $match->update([
+                'winner_team_id' => $newWinnerId,
+                'status' => 'completed',
+                'match_end' => now(),
+            ]);
+
+            if ($oldWinnerId && $oldWinnerId !== $newWinnerId) {
+                $this->removeFromNextMatch($match, $oldWinnerId, $tournament);
+            }
+
+            $this->advanceWinnerToNextMatch($match, $tournament);
+        });
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Remove a participant from the next match in the bracket.
+     */
+    private function removeFromNextMatch(MatchModel $match, int $participantId, Tournament $tournament): void
+    {
+        $nextMatch = $this->getNextMatch($match, $tournament);
+
+        if (! $nextMatch) {
+            return;
+        }
+
+        if ($nextMatch->team1_id === $participantId) {
+            $nextMatch->update([
+                'team1_id' => null,
+                'team1_seed' => null,
+            ]);
+        } elseif ($nextMatch->team2_id === $participantId) {
+            $nextMatch->update([
+                'team2_id' => null,
+                'team2_seed' => null,
+            ]);
+        }
+
+        if (! $nextMatch->team1_id || ! $nextMatch->team2_id) {
+            $nextMatch->update(['status' => 'pending']);
+        }
+    }
+
+    /**
+     * Advance the winner to the next match in the bracket.
+     */
+    private function advanceWinnerToNextMatch(MatchModel $match, Tournament $tournament): void
+    {
+        if (! $match->winner_team_id) {
+            return;
+        }
+
+        $nextMatch = $this->getNextMatch($match, $tournament);
+
+        if (! $nextMatch) {
+            return;
+        }
+
+        $roundMatches = MatchModel::where('tournament_id', $tournament->id)
+            ->where('round', $match->round)
+            ->where('stage', $match->stage ?? 'bracket')
+            ->orderBy('id')
+            ->get();
+
+        $matchPosition = $roundMatches->search(function ($m) use ($match) {
+            return $m->id === $match->id;
+        });
+
+        if ($matchPosition === false) {
+            return;
+        }
+
+        $isOddPosition = ($matchPosition % 2) === 0;
+        $winnerSeed = $match->winner_team_id === $match->team1_id ? $match->team1_seed : $match->team2_seed;
+
+        if ($isOddPosition) {
+            $nextMatch->update([
+                'team1_id' => $match->winner_team_id,
+                'team1_seed' => $winnerSeed,
+            ]);
+        } else {
+            $nextMatch->update([
+                'team2_id' => $match->winner_team_id,
+                'team2_seed' => $winnerSeed,
+            ]);
+        }
+
+        if ($nextMatch->team1_id && $nextMatch->team2_id) {
+            $nextMatch->update(['status' => 'scheduled']);
+        }
+    }
+
+    /**
+     * Get the next match in the bracket that this match feeds into.
+     */
+    private function getNextMatch(MatchModel $match, Tournament $tournament): ?MatchModel
+    {
+        $currentRound = $match->round;
+        $nextRound = $currentRound + 1;
+
+        $roundMatches = MatchModel::where('tournament_id', $tournament->id)
+            ->where('round', $currentRound)
+            ->where('stage', $match->stage ?? 'bracket')
+            ->orderBy('id')
+            ->get();
+
+        $matchPosition = $roundMatches->search(function ($m) use ($match) {
+            return $m->id === $match->id;
+        });
+
+        if ($matchPosition === false) {
+            return null;
+        }
+
+        $nextMatchPosition = (int) floor($matchPosition / 2);
+
+        return MatchModel::where('tournament_id', $tournament->id)
+            ->where('round', $nextRound)
+            ->where('stage', $match->stage ?? 'bracket')
+            ->orderBy('id')
+            ->skip($nextMatchPosition)
+            ->first();
     }
 }

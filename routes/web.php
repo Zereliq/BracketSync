@@ -104,6 +104,7 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::get('/qualifiers/search-users', [TournamentQualifiersController::class, 'searchUsers'])->name('qualifiers.search-users');
         Route::get('/matches', [TournamentController::class, 'matches'])->name('matches');
         Route::post('/matches/update-round-settings', [TournamentController::class, 'updateRoundSettings'])->name('matches.update-round-settings');
+        Route::post('/matches/fetch-osu-match', [TournamentController::class, 'fetchOsuMatch'])->name('matches.fetch-osu-match');
         Route::post('/matches/fill-result', [TournamentController::class, 'fillMatchResult'])->name('matches.fill-result');
         Route::get('/mappools', [TournamentController::class, 'mappools'])->name('mappools');
         Route::get('/mappools/create', [\App\Http\Controllers\MappoolController::class, 'create'])->name('mappools.create');

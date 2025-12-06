@@ -3,6 +3,7 @@
     $canEdit = auth()->check() && auth()->user()->can('editMappools', $tournament);
     $mappools = $mappools ?? collect();
     $routePrefix = $isDashboard ? 'dashboard.tournaments.' : 'tournaments.';
+    $currentMappoolId = $currentMappoolId ?? null;
 @endphp
 
 <div class="space-y-6">
@@ -28,20 +29,38 @@
     @else
         <div class="grid grid-cols-1 gap-4">
             @foreach($mappools as $mappool)
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-xl font-bold text-white">{{ $mappool->name }}</h3>
-                            @if($mappool->stage)
-                                <p class="text-sm text-slate-400">{{ $mappool->stage }}</p>
-                            @endif
-                        </div>
+                @php
+                    $isCurrentMappool = $currentMappoolId && $mappool->id === $currentMappoolId;
+                    $mappoolId = 'mappool-' . $mappool->id;
+                @endphp
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 {{ $isCurrentMappool ? 'ring-2 ring-pink-500/50' : '' }}">
+                    {{-- Collapsible Header --}}
+                    <div class="flex items-center justify-between" id="{{ $mappoolId }}-header">
+                        <button
+                            onclick="toggleMappool('{{ $mappoolId }}')"
+                            class="flex items-center space-x-4 flex-1 hover:opacity-80 transition-opacity text-left"
+                        >
+                            <svg class="w-5 h-5 text-slate-400 transition-transform duration-200 mappool-chevron flex-shrink-0" id="{{ $mappoolId }}-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="text-xl font-bold text-white">{{ $mappool->name }}</h3>
+                                    @if($isCurrentMappool)
+                                        <span class="px-2 py-1 bg-pink-500/20 text-pink-400 text-xs font-bold rounded-full">Current</span>
+                                    @endif
+                                </div>
+                                @if($mappool->stage)
+                                    <p class="text-sm text-slate-400">{{ $mappool->stage }}</p>
+                                @endif
+                            </div>
+                        </button>
                         @if($canEdit)
-                            <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-2 flex-shrink-0">
                                 <a href="{{ route('dashboard.tournaments.mappools.edit', [$tournament, $mappool]) }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     Edit
                                 </a>
-                                <form action="{{ route('dashboard.tournaments.mappools.destroy', [$tournament, $mappool]) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this mappool?');">
+                                <form action="{{ route('dashboard.tournaments.mappools.destroy', [$tournament, $mappool]) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this mappool?');">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-slate-400 hover:text-red-400 transition-colors" title="Delete mappool">
@@ -54,17 +73,19 @@
                         @endif
                     </div>
 
-                    @if($mappool->maps && $mappool->maps->isNotEmpty())
-                        <div class="space-y-2">
-                            @php
-                                $mapsByMod = $mappool->maps->groupBy('mod_type');
-                                // Define the order of mod types
-                                $modOrder = ['NM', 'HD', 'HR', 'DT', 'FM', 'TB'];
-                                // Sort the groups by the defined order
-                                $sortedMapsByMod = collect($modOrder)
-                                    ->filter(fn($mod) => $mapsByMod->has($mod))
-                                    ->mapWithKeys(fn($mod) => [$mod => $mapsByMod->get($mod)]);
-                            @endphp
+                    {{-- Collapsible Content --}}
+                    <div id="{{ $mappoolId }}" class="mappool-content mt-4" style="display: {{ $isCurrentMappool ? 'block' : 'none' }}">
+                        @if($mappool->maps && $mappool->maps->isNotEmpty())
+                            <div class="space-y-2">
+                                @php
+                                    $mapsByMod = $mappool->maps->groupBy('mod_type');
+                                    // Define the order of mod types
+                                    $modOrder = ['NM', 'HD', 'HR', 'DT', 'FM', 'TB'];
+                                    // Sort the groups by the defined order
+                                    $sortedMapsByMod = collect($modOrder)
+                                        ->filter(fn($mod) => $mapsByMod->has($mod))
+                                        ->mapWithKeys(fn($mod) => [$mod => $mapsByMod->get($mod)]);
+                                @endphp
 
                             @foreach($sortedMapsByMod as $mod => $maps)
                                 <div class="bg-slate-800/50 rounded-lg p-4">
@@ -168,12 +189,13 @@
                                     </div>
                                 </div>
                             @endforeach
-                        </div>
-                    @else
-                        <div class="text-center py-8">
-                            <p class="text-slate-500">No maps in this pool</p>
-                        </div>
-                    @endif
+                            </div>
+                        @else
+                            <div class="text-center py-8">
+                                <p class="text-slate-500">No maps in this pool</p>
+                            </div>
+                        @endif
+                    </div>
                 </div>
             @endforeach
         </div>
@@ -181,6 +203,31 @@
 </div>
 
 <script>
+    function toggleMappool(mappoolId) {
+        const content = document.getElementById(mappoolId);
+        const chevron = document.getElementById(mappoolId + '-chevron');
+
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            chevron.style.transform = 'rotate(0deg)';
+        } else {
+            content.style.display = 'none';
+            chevron.style.transform = 'rotate(-90deg)';
+        }
+    }
+
+    // Initialize chevron rotation for collapsed mappools
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.mappool-content').forEach(function(content) {
+            if (content.style.display === 'none') {
+                const chevron = document.getElementById(content.id + '-chevron');
+                if (chevron) {
+                    chevron.style.transform = 'rotate(-90deg)';
+                }
+            }
+        });
+    });
+
     function copyBeatmapId(beatmapId) {
         const button = event.currentTarget;
         const originalHTML = button.innerHTML;

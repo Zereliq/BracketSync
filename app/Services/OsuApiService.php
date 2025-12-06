@@ -106,6 +106,36 @@ class OsuApiService
     }
 
     /**
+     * Fetch multiplayer match data from osu! API by match ID.
+     */
+    public function getMatch(int $matchId): ?array
+    {
+        $token = $this->getAccessToken();
+
+        if (! $token) {
+            return null;
+        }
+
+        try {
+            $http = Http::withToken($token);
+
+            if (config('app.curl_verify_ssl') === false) {
+                $http = $http->withOptions(['verify' => false]);
+            }
+
+            $response = $http->get("https://osu.ppy.sh/api/v2/matches/{$matchId}");
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch match {$matchId}: ".$e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
      * Convert osu! API mode string to our format.
      */
     private function convertMode(string $mode): string

@@ -177,6 +177,12 @@
                     // Get the correct participant based on tournament type
                     $team1 = $tournament->isTeamTournament() ? $match->team1 : $match->player1;
                     $team2 = $tournament->isTeamTournament() ? $match->team2 : $match->player2;
+
+                    // Skip matches without determined players
+                    if (!$team1 && !$team2) {
+                        continue;
+                    }
+
                     $winner = $match->winner;
                     $status = $match->status ?? 'pending';
                     $statusInfo = $statusConfig[$status] ?? $statusConfig['pending'];
@@ -506,31 +512,140 @@
 </div>
 
 {{-- Fill Result Modal --}}
-<div id="fillResultModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-900 rounded-xl border border-slate-800 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b border-slate-800">
+<div id="fillResultModal" class="hidden fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+    <div class="flex min-h-full items-center justify-center p-4">
+        <div class="bg-slate-900 rounded-xl border border-slate-800 max-w-4xl w-full my-8">
+        <div class="p-6 border-b border-slate-800 flex items-center justify-between">
             <h2 class="text-xl font-bold text-white">Fill Match Result</h2>
+            <button type="button" onclick="closeFillResult()" class="text-slate-400 hover:text-white transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
         </div>
-        <form id="fillResultForm" class="p-6 space-y-4">
-            @csrf
-            <input type="hidden" id="result_match_id" name="match_id">
+        <div class="p-6">
+            {{-- Step 1: Enter osu! Match ID --}}
+            <div id="matchIdStep" class="space-y-4">
+                {{-- Expected Participants Info --}}
+                <div id="expectedParticipantsInfo" class="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-blue-400 mb-2">Expected Participants</h4>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <p class="text-slate-400 mb-1" id="expectedTeam1Label">Team 1</p>
+                                    <p class="text-white font-medium" id="expectedTeam1Name">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 mb-1" id="expectedTeam2Label">Team 2</p>
+                                    <p class="text-white font-medium" id="expectedTeam2Name">-</p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-blue-300 mt-2">Make sure the osu! match includes these participants</p>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="bg-slate-800/50 rounded-lg p-4 mb-4">
-                <p class="text-sm text-slate-400 mb-2">Select the winning team/player:</p>
-                <div id="resultParticipants" class="space-y-2">
-                    {{-- Populated by JavaScript --}}
+                <div>
+                    <label for="osu_match_id" class="block text-sm font-medium text-slate-300 mb-2">
+                        osu! Match ID
+                    </label>
+                    <div class="flex gap-3">
+                        <input type="text" id="osu_match_id"
+                            class="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                            placeholder="e.g., 115584968">
+                        <button type="button" onclick="fetchOsuMatch()"
+                            class="px-6 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            <span>Fetch Data</span>
+                        </button>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-500">Enter the osu! multiplayer match ID to automatically fetch all game results</p>
+                </div>
+
+                <div id="fetchError" class="hidden bg-red-500/20 border border-red-500/30 rounded-lg p-4">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h4 id="errorTitle" class="text-sm font-semibold text-red-400 mb-1"></h4>
+                            <p id="errorDetails" class="text-sm text-red-300 mb-2"></p>
+                            <ul id="errorIssues" class="space-y-1 text-sm text-red-300 list-none"></ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="fetchLoading" class="hidden">
+                    <div class="flex items-center justify-center py-8">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3 pt-4">
-                <button type="submit" class="flex-1 px-6 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors">
-                    Submit Result
-                </button>
-                <button type="button" onclick="closeFillResult()" class="flex-1 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
-                    Cancel
-                </button>
+            {{-- Step 2: Review and Edit Results --}}
+            <div id="resultsStep" class="hidden space-y-4">
+                <div class="bg-slate-800/50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white">Match Overview</h3>
+                        <button type="button" onclick="resetModal()" class="text-sm text-slate-400 hover:text-white transition-colors">
+                            Change Match ID
+                        </button>
+                    </div>
+
+                    {{-- Score Summary --}}
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="bg-slate-900 rounded-lg p-4 text-center">
+                            <p class="text-slate-400 text-sm mb-1" id="team1NameDisplay">Team 1</p>
+                            <p class="text-3xl font-bold text-white" id="team1ScoreDisplay">0</p>
+                        </div>
+                        <div class="flex items-center justify-center">
+                            <span class="text-slate-500 font-bold text-lg">vs</span>
+                        </div>
+                        <div class="bg-slate-900 rounded-lg p-4 text-center">
+                            <p class="text-slate-400 text-sm mb-1" id="team2NameDisplay">Team 2</p>
+                            <p class="text-3xl font-bold text-white" id="team2ScoreDisplay">0</p>
+                        </div>
+                    </div>
+
+                    {{-- Winner Display --}}
+                    <div id="winnerDisplay" class="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center">
+                        <p class="text-sm text-green-400 font-semibold">Winner: <span id="winnerName"></span></p>
+                    </div>
+                </div>
+
+                {{-- Games List --}}
+                <div class="space-y-3">
+                    <h3 class="text-lg font-bold text-white">Games Played</h3>
+                    <div id="gamesList" class="space-y-2">
+                        {{-- Populated by JavaScript --}}
+                    </div>
+                </div>
+
+                {{-- Submit Button --}}
+                <form id="fillResultForm" class="pt-4 border-t border-slate-800">
+                    @csrf
+                    <input type="hidden" id="result_match_id" name="match_id">
+                    <input type="hidden" id="result_winner_id" name="winner_id">
+                    <input type="hidden" id="result_games_data" name="games">
+
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="flex-1 px-6 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors">
+                            Save Match Result
+                        </button>
+                        <button type="button" onclick="closeFillResult()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
+        </div>
     </div>
 </div>
 
@@ -606,29 +721,208 @@
         loadCurrentSettings();
     });
 
+    let currentMatchId = null;
+    let currentMatchData = null;
+    let fetchedGames = [];
+
     function openFillResult(matchId) {
         const match = matches.find(m => m.id === matchId);
         if (!match) return;
 
+        currentMatchId = matchId;
         document.getElementById('result_match_id').value = matchId;
 
-        const participantsDiv = document.getElementById('resultParticipants');
-        participantsDiv.innerHTML = `
-            <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
-                <input type="radio" name="winner_id" value="${match.team1_id}" class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 focus:ring-pink-500">
-                <span class="text-white font-medium">${match.team1_name}</span>
-            </label>
-            <label class="flex items-center space-x-3 p-3 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
-                <input type="radio" name="winner_id" value="${match.team2_id}" class="w-4 h-4 text-pink-500 bg-slate-800 border-slate-700 focus:ring-pink-500">
-                <span class="text-white font-medium">${match.team2_name}</span>
-            </label>
-        `;
+        const isTeamTournament = {{ $tournament->isTeamTournament() ? 'true' : 'false' }};
 
+        if (isTeamTournament) {
+            document.getElementById('expectedTeam1Label').textContent = 'Team 1';
+            document.getElementById('expectedTeam2Label').textContent = 'Team 2';
+        } else {
+            document.getElementById('expectedTeam1Label').textContent = 'Player 1';
+            document.getElementById('expectedTeam2Label').textContent = 'Player 2';
+        }
+
+        document.getElementById('expectedTeam1Name').textContent = match.team1_name || 'TBD';
+        document.getElementById('expectedTeam2Name').textContent = match.team2_name || 'TBD';
+
+        resetModal();
         document.getElementById('fillResultModal').classList.remove('hidden');
+    }
+
+    function resetModal() {
+        document.getElementById('matchIdStep').classList.remove('hidden');
+        document.getElementById('resultsStep').classList.add('hidden');
+        document.getElementById('fetchError').classList.add('hidden');
+        document.getElementById('fetchLoading').classList.add('hidden');
+        document.getElementById('osu_match_id').value = '';
+        fetchedGames = [];
     }
 
     function closeFillResult() {
         document.getElementById('fillResultModal').classList.add('hidden');
+        resetModal();
+    }
+
+    async function fetchOsuMatch() {
+        const osuMatchId = document.getElementById('osu_match_id').value.trim();
+
+        if (!osuMatchId) {
+            showError('Validation Error', 'Please enter a match ID', []);
+            return;
+        }
+
+        document.getElementById('fetchError').classList.add('hidden');
+        document.getElementById('fetchLoading').classList.remove('hidden');
+
+        try {
+            const response = await fetch(`{{ route('dashboard.tournaments.matches.fetch-osu-match', $tournament) }}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('[name="_token"]').value,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    match_id: currentMatchId,
+                    osu_match_id: osuMatchId
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const errorTitle = data.error || 'Error';
+                const errorDetails = data.details || 'An unexpected error occurred';
+                const errorIssues = data.issues || [];
+                showError(errorTitle, errorDetails, errorIssues);
+                return;
+            }
+
+            displayResults(data);
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Network Error', 'Failed to connect to the server. Please try again.', []);
+        } finally {
+            document.getElementById('fetchLoading').classList.add('hidden');
+        }
+    }
+
+    function showError(title, details, issues) {
+        const errorDiv = document.getElementById('fetchError');
+        const titleEl = document.getElementById('errorTitle');
+        const detailsEl = document.getElementById('errorDetails');
+        const issuesEl = document.getElementById('errorIssues');
+
+        titleEl.textContent = title;
+        detailsEl.textContent = details;
+
+        issuesEl.innerHTML = '';
+        if (issues && issues.length > 0) {
+            issues.forEach(issue => {
+                const li = document.createElement('li');
+                li.className = 'flex items-start space-x-2';
+                li.innerHTML = `
+                    <span class="text-red-400 mt-0.5">•</span>
+                    <span>${issue}</span>
+                `;
+                issuesEl.appendChild(li);
+            });
+        }
+
+        errorDiv.classList.remove('hidden');
+    }
+
+    function displayResults(data) {
+        currentMatchData = data;
+        fetchedGames = data.games || [];
+
+        const isTeamTournament = {{ $tournament->isTeamTournament() ? 'true' : 'false' }};
+        const team1Name = isTeamTournament
+            ? (data.match.team1?.teamname || 'Team 1')
+            : (data.match.team1?.name || data.match.team1?.username || 'Player 1');
+        const team2Name = isTeamTournament
+            ? (data.match.team2?.teamname || 'Team 2')
+            : (data.match.team2?.name || data.match.team2?.username || 'Player 2');
+
+        document.getElementById('team1NameDisplay').textContent = team1Name;
+        document.getElementById('team2NameDisplay').textContent = team2Name;
+        document.getElementById('team1ScoreDisplay').textContent = data.team1_score;
+        document.getElementById('team2ScoreDisplay').textContent = data.team2_score;
+
+        const winnerName = data.winner_id === data.match.team1?.id ? team1Name : team2Name;
+        document.getElementById('winnerName').textContent = winnerName;
+        document.getElementById('result_winner_id').value = data.winner_id || '';
+
+        const gamesList = document.getElementById('gamesList');
+        gamesList.innerHTML = '';
+
+        fetchedGames.forEach((game, index) => {
+            const gameDiv = document.createElement('div');
+            gameDiv.className = 'bg-slate-800/50 rounded-lg p-4 border border-slate-700';
+
+            const isWinner1 = game.winning_team_id === data.match.team1?.id;
+
+            gameDiv.innerHTML = `
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-slate-400 font-medium">Game ${game.order_in_match}</span>
+                        <span class="text-white font-semibold">${game.map?.artist || 'Unknown'} - ${game.map?.title || 'Unknown'}</span>
+                        <span class="text-slate-500 text-sm">[${game.map?.version || 'Unknown'}]</span>
+                    </div>
+                    <button type="button" onclick="removeGame(${index})" class="text-red-400 hover:text-red-300 text-sm">
+                        Remove
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900 rounded p-3 ${isWinner1 ? 'ring-2 ring-green-500/50' : ''}">
+                        <p class="text-slate-400 text-xs mb-1">${team1Name}</p>
+                        <p class="text-white font-bold text-lg">${game.team1_score.toLocaleString()}</p>
+                        ${isWinner1 ? '<p class="text-green-400 text-xs font-semibold mt-1">Winner</p>' : ''}
+                    </div>
+                    <div class="bg-slate-900 rounded p-3 ${!isWinner1 ? 'ring-2 ring-green-500/50' : ''}">
+                        <p class="text-slate-400 text-xs mb-1">${team2Name}</p>
+                        <p class="text-white font-bold text-lg">${game.team2_score.toLocaleString()}</p>
+                        ${!isWinner1 ? '<p class="text-green-400 text-xs font-semibold mt-1">Winner</p>' : ''}
+                    </div>
+                </div>
+            `;
+
+            gamesList.appendChild(gameDiv);
+        });
+
+        document.getElementById('matchIdStep').classList.add('hidden');
+        document.getElementById('resultsStep').classList.remove('hidden');
+    }
+
+    function removeGame(index) {
+        fetchedGames.splice(index, 1);
+
+        const team1Id = currentMatchData.match.team1?.id;
+        const team2Id = currentMatchData.match.team2?.id;
+
+        const team1Wins = fetchedGames.filter(g => g.winning_team_id === team1Id).length;
+        const team2Wins = fetchedGames.filter(g => g.winning_team_id === team2Id).length;
+
+        currentMatchData.team1_score = team1Wins;
+        currentMatchData.team2_score = team2Wins;
+
+        const bestOf = currentMatchData.match.best_of;
+        let winnerId = null;
+
+        if (bestOf) {
+            const winsNeeded = Math.ceil(bestOf / 2);
+            if (team1Wins >= winsNeeded) {
+                winnerId = team1Id;
+            } else if (team2Wins >= winsNeeded) {
+                winnerId = team2Id;
+            }
+        } else {
+            winnerId = team1Wins > team2Wins ? team1Id : (team2Wins > team1Wins ? team2Id : null);
+        }
+
+        currentMatchData.winner_id = winnerId;
+
+        displayResults(currentMatchData);
     }
 
     // Handle round settings form submission
@@ -661,12 +955,18 @@
     document.getElementById('fillResultForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        const matchId = formData.get('match_id');
 
-        if (!formData.get('winner_id')) {
-            alert('Please select a winner');
-            return;
-        }
+        const gamesData = fetchedGames.map(game => ({
+            mappool_map_id: game.mappool_map_id,
+            winning_team_id: game.winning_team_id,
+            scores: game.scores
+        }));
+
+        const payload = {
+            match_id: formData.get('match_id'),
+            winner_id: formData.get('winner_id'),
+            games: gamesData
+        };
 
         try {
             const response = await fetch(`{{ route('dashboard.tournaments.matches.fill-result', $tournament) }}`, {
@@ -674,14 +974,16 @@
                 headers: {
                     'X-CSRF-TOKEN': formData.get('_token'),
                     'Accept': 'application/json',
+                    'Content-Type': 'application/json',
                 },
-                body: formData
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {
                 window.location.reload();
             } else {
-                alert('Failed to submit result');
+                const data = await response.json();
+                alert(data.message || 'Failed to submit result');
             }
         } catch (error) {
             console.error('Error:', error);
