@@ -7,7 +7,7 @@
 <div x-data="{ editing: {{ $errors->any() ? 'true' : 'false' }}, showPublishModal: false }">
     @if($canEdit)
         <div class="flex justify-end gap-3 mb-6">
-            @if($canEdit && $tournament->status !== 'announced')
+            @if($canEdit && $tournament->status === 'draft')
                 <button @click="showPublishModal = true"
                         type="button"
                         class="px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">

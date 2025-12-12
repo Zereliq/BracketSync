@@ -17,9 +17,10 @@ trait LoadsTournamentMatches
             'matches.player1',
             'matches.player2',
             'matches.winner',
+            'matches.noShowTeam',
             'matches.referee',
             'matches.mappool',
-            'matches.games',
+            'matches.scores',
             'matches.rolls.team',
         ]);
 

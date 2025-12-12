@@ -10,9 +10,12 @@ class Score extends Model
     use HasFactory;
 
     protected $fillable = [
-        'game_id',
+        'match_id',
+        'map_number',
+        'mappool_map_id',
         'user_id',
         'team_id',
+        'winning_team_id',
         'score',
         'accuracy',
         'combo',
@@ -24,9 +27,14 @@ class Score extends Model
         'passed' => 'boolean',
     ];
 
-    public function game()
+    public function match()
     {
-        return $this->belongsTo(Game::class);
+        return $this->belongsTo(MatchModel::class, 'match_id');
+    }
+
+    public function mappoolMap()
+    {
+        return $this->belongsTo(MappoolMap::class);
     }
 
     public function user()
@@ -37,5 +45,10 @@ class Score extends Model
     public function team()
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function winningTeam()
+    {
+        return $this->belongsTo(Team::class, 'winning_team_id');
     }
 }

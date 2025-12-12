@@ -13,6 +13,7 @@
         'scheduled' => ['color' => 'blue', 'label' => 'Scheduled', 'icon' => 'calendar'],
         'in_progress' => ['color' => 'yellow', 'label' => 'In Progress', 'icon' => 'play'],
         'completed' => ['color' => 'green', 'label' => 'Completed', 'icon' => 'check'],
+        'no_show' => ['color' => 'orange', 'label' => 'No-Show', 'icon' => 'alert-circle'],
         'cancelled' => ['color' => 'red', 'label' => 'Cancelled', 'icon' => 'x'],
     ];
 @endphp
@@ -146,8 +147,8 @@
                         $duration = $match->match_start->diffInMinutes($match->match_end);
                     }
 
-                    // Get game count
-                    $gameCount = $match->games ? $match->games->count() : 0;
+                    // Get map count (distinct map_numbers in scores)
+                    $gameCount = $match->scores ? $match->scores->pluck('map_number')->unique()->count() : 0;
 
                     // Determine if team1 or team2 won
                     $team1Won = $winner && $winner->id === $team1?->id;
@@ -223,16 +224,49 @@
 
                             @if($canEdit)
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    {{-- Fill Result Button (only if match is not completed) --}}
-                                    @if($match->status !== 'completed')
+                                    {{-- Fill Result Button (only if match is not completed or no_show) --}}
+                                    @if($match->status !== 'completed' && $match->status !== 'no_show')
                                         <button type="button"
                                                 onclick="openFillResult({{ $match->id }})"
                                                 class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
-                                                title="Fill match result">
+                                                title="Fill match result from osu! match ID">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                             </svg>
                                             <span>Fill Result</span>
+                                        </button>
+
+                                        {{-- Manual Entry Button --}}
+                                        <button type="button"
+                                                onclick="openManualEntry({{ $match->id }})"
+                                                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                                                title="Manually enter map wins">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                            <span>Manual Entry</span>
+                                        </button>
+
+                                        {{-- Mark as No-Show Button --}}
+                                        <button type="button"
+                                                onclick="openNoShowModal({{ $match->id }})"
+                                                class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                                                title="Mark player/team as no-show">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <span>No-Show</span>
+                                        </button>
+                                    @else
+                                        {{-- Edit Result Button (for completed/no_show matches) --}}
+                                        <button type="button"
+                                                onclick="openEditMatch({{ $match->id }})"
+                                                class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                                                title="Edit match result">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                            <span>Edit Result</span>
                                         </button>
                                     @endif
                                 </div>
@@ -279,10 +313,17 @@
                                             @if($match->team1_seed)
                                                 <p class="text-slate-500 text-xs">Seed #{{ $match->team1_seed }}</p>
                                             @endif
+                                            @if($match->status === 'no_show' && $match->no_show_team_id === $team1->id)
+                                                @if($match->no_show_type === 'disqualified')
+                                                    <span class="inline-block mt-1 px-2 py-0.5 bg-red-500/20 border border-red-500/50 text-red-400 text-xs font-semibold rounded">DISQUALIFIED</span>
+                                                @else
+                                                    <span class="inline-block mt-1 px-2 py-0.5 bg-orange-500/20 border border-orange-500/50 text-orange-400 text-xs font-semibold rounded">NO-SHOW</span>
+                                                @endif
+                                            @endif
                                         </div>
                                         <div class="flex flex-col items-end">
                                             <div class="text-3xl font-bold {{ $team1Won ? 'text-green-400' : 'text-white' }}">
-                                                {{ $match->games->where('winning_team_id', $team1->id)->count() }}
+                                                {{ $match->scores->where('winning_team_id', $team1->id)->pluck('map_number')->unique()->count() }}
                                             </div>
                                             @if($team1Won)
                                                 <span class="text-xs font-semibold text-green-400 uppercase">Winner</span>
@@ -314,7 +355,7 @@
                                     <div class="flex items-center space-x-3 p-4 bg-slate-800/50 rounded-lg {{ $team2Won ? 'ring-2 ring-green-500/50' : '' }} transition-all">
                                         <div class="flex flex-col items-start">
                                             <div class="text-3xl font-bold {{ $team2Won ? 'text-green-400' : 'text-white' }}">
-                                                {{ $match->games->where('winning_team_id', $team2->id)->count() }}
+                                                {{ $match->scores->where('winning_team_id', $team2->id)->pluck('map_number')->unique()->count() }}
                                             </div>
                                             @if($team2Won)
                                                 <span class="text-xs font-semibold text-green-400 uppercase">Winner</span>
@@ -324,6 +365,13 @@
                                             <p class="text-white font-semibold truncate text-lg text-right">{{ $team2Name }}</p>
                                             @if($match->team2_seed)
                                                 <p class="text-slate-500 text-xs text-right">Seed #{{ $match->team2_seed }}</p>
+                                            @endif
+                                            @if($match->status === 'no_show' && $match->no_show_team_id === $team2->id)
+                                                @if($match->no_show_type === 'disqualified')
+                                                    <span class="inline-block mt-1 px-2 py-0.5 bg-red-500/20 border border-red-500/50 text-red-400 text-xs font-semibold rounded">DISQUALIFIED</span>
+                                                @else
+                                                    <span class="inline-block mt-1 px-2 py-0.5 bg-orange-500/20 border border-orange-500/50 text-orange-400 text-xs font-semibold rounded">NO-SHOW</span>
+                                                @endif
                                             @endif
                                         </div>
                                         @if($tournament->isTeamTournament())
@@ -564,6 +612,147 @@
     </div>
 </div>
 
+{{-- No-Show Modal --}}
+<div id="noShowModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full shadow-2xl">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white">Mark as No-Show</h2>
+                <button type="button" onclick="closeNoShowModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="noShowForm">
+                @csrf
+                <input type="hidden" id="noshow_match_id" name="match_id">
+
+                <div class="space-y-4">
+                    <p class="text-slate-300">Select which player/team did not show up or was disqualified. The opposing player/team will automatically receive the win.</p>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Forfeit Type</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center justify-center space-x-2 p-3 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors border-2 border-transparent has-[:checked]:border-orange-500">
+                                <input type="radio" name="no_show_type" value="no_show" class="w-4 h-4 text-orange-500" required checked>
+                                <span class="text-white font-medium">No-Show</span>
+                            </label>
+                            <label class="flex items-center justify-center space-x-2 p-3 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors border-2 border-transparent has-[:checked]:border-red-500">
+                                <input type="radio" name="no_show_type" value="disqualified" class="w-4 h-4 text-red-500" required>
+                                <span class="text-white font-medium">Disqualified</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Select Player/Team</label>
+                        <div class="space-y-3">
+                            <label class="flex items-center space-x-3 p-4 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+                                <input type="radio" id="noshow_team1_id" name="no_show_team_id" value="" class="w-5 h-5 text-pink-500" required>
+                                <span class="text-white font-medium" id="noshowTeam1Label"></span>
+                            </label>
+
+                            <label class="flex items-center space-x-3 p-4 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+                                <input type="radio" id="noshow_team2_id" name="no_show_team_id" value="" class="w-5 h-5 text-pink-500" required>
+                                <span class="text-white font-medium" id="noshowTeam2Label"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 pt-4">
+                        <button type="submit" class="flex-1 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors">
+                            Confirm Forfeit
+                        </button>
+                        <button type="button" onclick="closeNoShowModal()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Manual Entry Modal --}}
+<div id="manualEntryModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-3xl w-full shadow-2xl my-8">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white">Manual Score Entry</h2>
+                <button type="button" onclick="closeManualEntry()" class="text-slate-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-blue-400 font-semibold mb-1">Match Participants</p>
+                        <div class="flex items-center gap-4">
+                            <span class="text-white font-medium" id="manualTeam1Name"></span>
+                            <span class="text-slate-500">vs</span>
+                            <span class="text-white font-medium" id="manualTeam2Name"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form id="manualEntryForm">
+                @csrf
+                <input type="hidden" id="manual_match_id" name="match_id">
+
+                {{-- Quick Score Entry --}}
+                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
+                    <h3 class="text-sm font-semibold text-green-400 mb-2">Quick Score Entry</h3>
+                    <p class="text-xs text-slate-400 mb-3">Enter score (e.g., 6-1) and submit to save, or generate maps below for detailed entry.</p>
+                    <div class="grid grid-cols-3 gap-4 items-center">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-1" id="quickScoreTeam1Label">Team 1</label>
+                            <input type="number" id="quickScoreTeam1" min="0" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-center text-2xl font-bold" placeholder="0">
+                        </div>
+                        <div class="text-center">
+                            <span class="text-slate-500 text-2xl font-bold">-</span>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-1" id="quickScoreTeam2Label">Team 2</label>
+                            <input type="number" id="quickScoreTeam2" min="0" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-center text-2xl font-bold" placeholder="0">
+                        </div>
+                    </div>
+                    <button type="button" onclick="generateGamesFromScore()" class="mt-3 w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
+                        Generate Maps from Score
+                    </button>
+                </div>
+
+                <div class="space-y-4 mb-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white">Individual Maps (Optional)</h3>
+                        <button type="button" onclick="addManualGame()" class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors">
+                            + Add Map
+                        </button>
+                    </div>
+
+                    <div id="manualGamesContainer" class="space-y-3">
+                        {{-- Populated by JavaScript --}}
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 pt-4 border-t border-slate-800">
+                    <button type="submit" class="flex-1 px-6 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors">
+                        Save Match Result
+                    </button>
+                    <button type="button" onclick="closeManualEntry()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @php
     $matchesData = $matches->map(function($match) use ($tournament) {
         $team1 = $tournament->isTeamTournament() ? $match->team1 : $match->player1;
@@ -586,20 +775,32 @@
             'team1_name' => $team1Name,
             'team2_name' => $team2Name,
         ];
-    });
+    })->values();
 @endphp
 
 <script>
     // Match data for JavaScript
-    const matches = @json($matchesData);
+    const matchesData = @json($matchesData);
+
+    // Ensure matches is an array
+    const matches = Array.isArray(matchesData) ? matchesData : Object.values(matchesData || {});
+
+    console.log('Matches loaded:', matches);
+    console.log('Is array:', Array.isArray(matches));
 
     let currentMatchId = null;
     let currentMatchData = null;
     let fetchedGames = [];
+    let manualGameCounter = 0;
 
-    function openFillResult(matchId) {
+    // Make functions globally available
+    window.openFillResult = function(matchId) {
+        console.log('openFillResult called with matchId:', matchId);
         const match = matches.find(m => m.id === matchId);
-        if (!match) return;
+        if (!match) {
+            console.error('Match not found:', matchId);
+            return;
+        }
 
         currentMatchId = matchId;
         document.getElementById('result_match_id').value = matchId;
@@ -619,23 +820,23 @@
 
         resetModal();
         document.getElementById('fillResultModal').classList.remove('hidden');
-    }
+    };
 
-    function resetModal() {
+    window.resetModal = function() {
         document.getElementById('matchIdStep').classList.remove('hidden');
         document.getElementById('resultsStep').classList.add('hidden');
         document.getElementById('fetchError').classList.add('hidden');
         document.getElementById('fetchLoading').classList.add('hidden');
         document.getElementById('osu_match_id').value = '';
         fetchedGames = [];
-    }
+    };
 
-    function closeFillResult() {
+    window.closeFillResult = function() {
         document.getElementById('fillResultModal').classList.add('hidden');
         resetModal();
-    }
+    };
 
-    async function fetchOsuMatch() {
+    window.fetchOsuMatch = async function() {
         const osuMatchId = document.getElementById('osu_match_id').value.trim();
 
         if (!osuMatchId) {
@@ -679,7 +880,7 @@
         }
     }
 
-    function showError(title, details, issues) {
+    window.showError = function(title, details, issues) {
         const errorDiv = document.getElementById('fetchError');
         const titleEl = document.getElementById('errorTitle');
         const detailsEl = document.getElementById('errorDetails');
@@ -704,7 +905,7 @@
         errorDiv.classList.remove('hidden');
     }
 
-    function displayResults(data) {
+    window.displayResults = function(data) {
         currentMatchData = data;
         fetchedGames = data.games || [];
 
@@ -766,7 +967,7 @@
         document.getElementById('resultsStep').classList.remove('hidden');
     }
 
-    function removeGame(index) {
+    window.removeGame = function(index) {
         fetchedGames.splice(index, 1);
 
         const team1Id = currentMatchData.match.team1?.id;
@@ -843,4 +1044,546 @@
             closeFillResult();
         }
     });
+
+    // No-Show Modal Functions
+    window.openNoShowModal = function(matchId) {
+        const match = matches.find(m => m.id === matchId);
+        if (!match) {
+            console.error('Match not found:', matchId);
+            return;
+        }
+
+        console.log('Opening no-show modal for match:', match);
+
+        currentMatchId = matchId;
+        document.getElementById('noshow_match_id').value = matchId;
+
+        const isTeamTournament = {{ $tournament->isTeamTournament() ? 'true' : 'false' }};
+
+        // Set labels
+        document.getElementById('noshowTeam1Label').textContent = match.team1_name || 'TBD';
+        document.getElementById('noshowTeam2Label').textContent = match.team2_name || 'TBD';
+
+        // Set radio button values
+        const team1Radio = document.getElementById('noshow_team1_id');
+        const team2Radio = document.getElementById('noshow_team2_id');
+
+        team1Radio.value = match.team1_id;
+        team2Radio.value = match.team2_id;
+
+        console.log('Set team1 radio value:', team1Radio.value, 'for', match.team1_name);
+        console.log('Set team2 radio value:', team2Radio.value, 'for', match.team2_name);
+
+        // Clear any previous selection
+        team1Radio.checked = false;
+        team2Radio.checked = false;
+
+        document.getElementById('noShowModal').classList.remove('hidden');
+    };
+
+    window.closeNoShowModal = function() {
+        document.getElementById('noShowModal').classList.add('hidden');
+        document.getElementById('noShowForm').reset();
+    }
+
+    // Manual Entry Modal Functions
+    window.openManualEntry = async function(matchId) {
+        console.log('openManualEntry called with matchId:', matchId);
+        const match = matches.find(m => m.id === matchId);
+        if (!match) {
+            console.error('Match not found for ID:', matchId);
+            return;
+        }
+
+        currentMatchId = matchId;
+        currentMatchData = match;
+        console.log('Current match data set:', currentMatchData);
+        document.getElementById('manual_match_id').value = matchId;
+
+        const isTeamTournament = {{ $tournament->isTeamTournament() ? 'true' : 'false' }};
+        document.getElementById('manualTeam1Name').textContent = match.team1_name || 'TBD';
+        document.getElementById('manualTeam2Name').textContent = match.team2_name || 'TBD';
+
+        // Set quick score labels
+        document.getElementById('quickScoreTeam1Label').textContent = match.team1_name || 'TBD';
+        document.getElementById('quickScoreTeam2Label').textContent = match.team2_name || 'TBD';
+
+        // Fetch mappool maps if mappool exists
+        currentMatchData.mappoolMaps = [];
+        if (match.mappool_id) {
+            try {
+                const response = await fetch(`/api/mappools/${match.mappool_id}/maps`);
+                if (response.ok) {
+                    currentMatchData.mappoolMaps = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to fetch mappool maps:', error);
+            }
+        }
+
+        // Reset form
+        document.getElementById('manualGamesContainer').innerHTML = '';
+        document.getElementById('quickScoreTeam1').value = '';
+        document.getElementById('quickScoreTeam2').value = '';
+        manualGameCounter = 0;
+
+        document.getElementById('manualEntryModal').classList.remove('hidden');
+    };
+
+    window.closeManualEntry = function() {
+        document.getElementById('manualEntryModal').classList.add('hidden');
+        document.getElementById('manualEntryForm').reset();
+    };
+
+    window.generateGamesFromScore = function() {
+        if (!currentMatchData) {
+            console.error('Cannot generate games: currentMatchData is not set');
+            return;
+        }
+
+        const team1Score = parseInt(document.getElementById('quickScoreTeam1').value) || 0;
+        const team2Score = parseInt(document.getElementById('quickScoreTeam2').value) || 0;
+
+        if (team1Score === 0 && team2Score === 0) {
+            alert('Please enter at least one score');
+            return;
+        }
+
+        const totalMaps = team1Score + team2Score;
+        if (totalMaps > 20) {
+            alert('Total maps cannot exceed 20');
+            return;
+        }
+
+        // Clear existing games
+        document.getElementById('manualGamesContainer').innerHTML = '';
+        manualGameCounter = 0;
+
+        // Generate maps for team 1 wins
+        for (let i = 0; i < team1Score; i++) {
+            manualGameCounter++;
+            const gameHtml = `
+                <div class="manual-game bg-slate-800 rounded-lg p-4" data-game-index="${manualGameCounter}">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-white font-semibold">Map ${manualGameCounter}</h4>
+                        <button type="button" onclick="removeManualGame(${manualGameCounter})" class="text-red-400 hover:text-red-300 text-sm">Remove</button>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-1">Map Winner</label>
+                            <select name="games[${manualGameCounter}][winning_team_id]" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                <option value="">Select winner...</option>
+                                <option value="${currentMatchData.team1_id}" selected>${currentMatchData.team1_name}</option>
+                                <option value="${currentMatchData.team2_id}">${currentMatchData.team2_name}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('manualGamesContainer').insertAdjacentHTML('beforeend', gameHtml);
+        }
+
+        // Generate maps for team 2 wins
+        for (let i = 0; i < team2Score; i++) {
+            manualGameCounter++;
+            const gameHtml = `
+                <div class="manual-game bg-slate-800 rounded-lg p-4" data-game-index="${manualGameCounter}">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-white font-semibold">Map ${manualGameCounter}</h4>
+                        <button type="button" onclick="removeManualGame(${manualGameCounter})" class="text-red-400 hover:text-red-300 text-sm">Remove</button>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-1">Map Winner</label>
+                            <select name="games[${manualGameCounter}][winning_team_id]" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                <option value="">Select winner...</option>
+                                <option value="${currentMatchData.team1_id}">${currentMatchData.team1_name}</option>
+                                <option value="${currentMatchData.team2_id}" selected>${currentMatchData.team2_name}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('manualGamesContainer').insertAdjacentHTML('beforeend', gameHtml);
+        }
+
+        console.log(`Generated ${totalMaps} maps: ${team1Score} for ${currentMatchData.team1_name}, ${team2Score} for ${currentMatchData.team2_name}`);
+    };
+
+    window.addManualGame = function() {
+        if (!currentMatchData) {
+            console.error('Cannot add game: currentMatchData is not set');
+            return;
+        }
+
+        manualGameCounter++;
+
+        // Build mappool options if available
+        let mappoolOptions = '<option value="">Not specified</option>';
+        if (currentMatchData.mappoolMaps && currentMatchData.mappoolMaps.length > 0) {
+            currentMatchData.mappoolMaps.forEach(mapData => {
+                const map = mapData.map;
+                mappoolOptions += `<option value="${mapData.id}">${mapData.mod || ''} - ${map.artist} - ${map.title} [${map.version}]</option>`;
+            });
+        }
+
+        const isTeamTournament = {{ $tournament->isTeamTournament() ? 'true' : 'false' }};
+
+        const gameHtml = `
+            <div class="manual-game bg-slate-800 rounded-lg p-4" data-game-index="${manualGameCounter}">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-white font-semibold">Map ${manualGameCounter}</h4>
+                    <button type="button" onclick="removeManualGame(${manualGameCounter})" class="text-red-400 hover:text-red-300 text-sm">Remove</button>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Beatmap (Optional)</label>
+                        <select name="games[${manualGameCounter}][mappool_map_id]" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm">
+                            ${mappoolOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Map Winner</label>
+                        <select name="games[${manualGameCounter}][winning_team_id]" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                            <option value="">Select winner...</option>
+                            <option value="${currentMatchData.team1_id}">${currentMatchData.team1_name}</option>
+                            <option value="${currentMatchData.team2_id}">${currentMatchData.team2_name}</option>
+                        </select>
+                    </div>
+
+                    <div class="bg-slate-900/50 p-3 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium text-slate-400">Player Scores (Optional)</label>
+                            <button type="button" onclick="toggleScoresSection(${manualGameCounter})" class="text-xs text-pink-400 hover:text-pink-300">Show/Hide</button>
+                        </div>
+                        <div id="scoresSection${manualGameCounter}" class="hidden space-y-2">
+                            <p class="text-xs text-slate-500 mb-2">Add individual player scores for this map</p>
+                            <div id="scoresContainer${manualGameCounter}"></div>
+                            <button type="button" onclick="addPlayerScore(${manualGameCounter})" class="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs rounded transition-colors">
+                                + Add Player Score
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('manualGamesContainer').insertAdjacentHTML('beforeend', gameHtml);
+    };
+
+    window.removeManualGame = function(index) {
+        const gameElement = document.querySelector(`[data-game-index="${index}"]`);
+        if (gameElement) {
+            gameElement.remove();
+        }
+        // Renumber remaining maps
+        const games = document.querySelectorAll('.manual-game');
+        games.forEach((game, idx) => {
+            const header = game.querySelector('h4');
+            if (header) {
+                header.textContent = `Map ${idx + 1}`;
+            }
+        });
+    }
+
+    window.toggleScoresSection = function(gameIndex) {
+        const section = document.getElementById(`scoresSection${gameIndex}`);
+        section.classList.toggle('hidden');
+    }
+
+    let playerScoreCounters = {};
+
+    window.addPlayerScore = function(gameIndex) {
+        if (!playerScoreCounters[gameIndex]) {
+            playerScoreCounters[gameIndex] = 0;
+        }
+        playerScoreCounters[gameIndex]++;
+        const scoreIndex = playerScoreCounters[gameIndex];
+
+        const scoreHtml = `
+            <div class="bg-slate-800 p-2 rounded space-y-2" data-score-index="${scoreIndex}">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400">Player ${scoreIndex}</span>
+                    <button type="button" onclick="removePlayerScore(${gameIndex}, ${scoreIndex})" class="text-xs text-red-400 hover:text-red-300">Remove</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">User ID</label>
+                        <input type="number" name="games[${gameIndex}][scores][${scoreIndex}][user_id]" class="w-full px-2 py-1 text-xs bg-slate-900 border border-slate-700 rounded text-white" placeholder="User ID">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">Score</label>
+                        <input type="number" name="games[${gameIndex}][scores][${scoreIndex}][score]" class="w-full px-2 py-1 text-xs bg-slate-900 border border-slate-700 rounded text-white" placeholder="0">
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById(`scoresContainer${gameIndex}`).insertAdjacentHTML('beforeend', scoreHtml);
+    }
+
+    window.removePlayerScore = function(gameIndex, scoreIndex) {
+        const scoreElement = document.querySelector(`#scoresContainer${gameIndex} [data-score-index="${scoreIndex}"]`);
+        if (scoreElement) {
+            scoreElement.remove();
+        }
+    }
+
+    // No-Show Form Submit
+    document.getElementById('noShowForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+
+        // Ensure no_show_team_id is sent as integer
+        if (data.no_show_team_id) {
+            data.no_show_team_id = parseInt(data.no_show_team_id);
+        }
+
+        // Debug logging
+        console.log('Submitting no-show data:', data);
+
+        // Validate data before sending
+        if (!data.match_id || !data.no_show_team_id) {
+            alert('Please select which player/team did not show up');
+            return;
+        }
+
+        try {
+            const response = await fetch('{{ route('dashboard.tournaments.matches.mark-no-show', $tournament) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('No-show marked successfully:', result);
+                window.location.reload();
+            } else {
+                const result = await response.json();
+                console.error('Failed to mark no-show:', result);
+                alert(result.message || 'Failed to mark as no-show');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while marking the no-show');
+        }
+    });
+
+    // Manual Entry Form Submit
+    document.getElementById('manualEntryForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const data = {
+            match_id: formData.get('match_id'),
+            games: []
+        };
+
+        // Check if quick score is filled
+        const quickScoreTeam1 = parseInt(document.getElementById('quickScoreTeam1').value) || 0;
+        const quickScoreTeam2 = parseInt(document.getElementById('quickScoreTeam2').value) || 0;
+        const hasQuickScore = quickScoreTeam1 > 0 || quickScoreTeam2 > 0;
+
+        // Parse detailed maps data
+        const games = document.querySelectorAll('.manual-game');
+        const hasDetailedMaps = games.length > 0;
+
+        // Scenario 1: Only quick score, no detailed maps
+        if (hasQuickScore && !hasDetailedMaps) {
+            // Generate maps from quick score
+            for (let i = 0; i < quickScoreTeam1; i++) {
+                data.games.push({
+                    winning_team_id: currentMatchData.team1_id
+                });
+            }
+            for (let i = 0; i < quickScoreTeam2; i++) {
+                data.games.push({
+                    winning_team_id: currentMatchData.team2_id
+                });
+            }
+        }
+        // Scenario 2: Detailed maps (ignore quick score)
+        else if (hasDetailedMaps) {
+            games.forEach((game, index) => {
+                const gameIndex = game.dataset.gameIndex;
+                const winningTeamId = parseInt(formData.get(`games[${gameIndex}][winning_team_id]`));
+
+                if (!winningTeamId) {
+                    alert(`Please select a winner for Map ${index + 1}`);
+                    throw new Error('Missing winner');
+                }
+
+                const mappoolMapId = formData.get(`games[${gameIndex}][mappool_map_id]`);
+
+                // Parse player scores if any
+                const scoresData = [];
+                const scoresContainer = document.getElementById(`scoresContainer${gameIndex}`);
+                if (scoresContainer) {
+                    const scoreElements = scoresContainer.querySelectorAll('[data-score-index]');
+                    scoreElements.forEach(scoreEl => {
+                        const scoreIdx = scoreEl.dataset.scoreIndex;
+                        const userId = formData.get(`games[${gameIndex}][scores][${scoreIdx}][user_id]`);
+                        const score = formData.get(`games[${gameIndex}][scores][${scoreIdx}][score]`);
+
+                        if (userId) {
+                            scoresData.push({
+                                user_id: parseInt(userId),
+                                score: score ? parseInt(score) : null
+                            });
+                        }
+                    });
+                }
+
+                const gameData = {
+                    winning_team_id: winningTeamId
+                };
+
+                // Only add mappool_map_id if it's set
+                if (mappoolMapId && mappoolMapId !== '') {
+                    gameData.mappool_map_id = parseInt(mappoolMapId);
+                }
+
+                // Only add scores if there are any
+                if (scoresData.length > 0) {
+                    gameData.scores = scoresData;
+                }
+
+                console.log(`Map ${index + 1}:`, gameData);
+                data.games.push(gameData);
+            });
+        }
+        // Scenario 3: Neither quick score nor detailed maps
+        else {
+            alert('Please either fill in the quick score or add detailed maps');
+            return;
+        }
+
+        console.log('Submitting manual entry data:', data);
+
+        try {
+            const response = await fetch('{{ route('dashboard.tournaments.matches.fill-result-manual', $tournament) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Manual entry saved successfully:', result);
+                window.location.reload();
+            } else {
+                const result = await response.json();
+                console.error('Failed to save manual entry:', result);
+                alert(result.message || 'Failed to save manual entry');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while saving manual entry');
+        }
+    });
+
+    // Close modals on outside click
+    document.getElementById('noShowModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'noShowModal') {
+            closeNoShowModal();
+        }
+    });
+
+    document.getElementById('manualEntryModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'manualEntryModal') {
+            closeManualEntry();
+        }
+    });
+
+    // Edit Match Functions
+    window.openEditMatch = async function(matchId) {
+        console.log('openEditMatch called with matchId:', matchId);
+        const match = matches.find(m => m.id === matchId);
+        if (!match) {
+            console.error('Match not found for ID:', matchId);
+            return;
+        }
+
+        // Fetch existing match data
+        try {
+            const response = await fetch(`/dashboard/tournaments/{{ $tournament->id }}/matches/${matchId}/maps`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch match data');
+            }
+
+            const data = await response.json();
+            console.log('Existing match data:', data);
+
+            // Open manual entry modal
+            currentMatchId = matchId;
+            currentMatchData = match;
+            document.getElementById('manual_match_id').value = matchId;
+            document.getElementById('manualTeam1Name').textContent = match.team1_name || 'TBD';
+            document.getElementById('manualTeam2Name').textContent = match.team2_name || 'TBD';
+
+            // Reset and populate form with existing games
+            document.getElementById('manualGamesContainer').innerHTML = '';
+            manualGameCounter = 0;
+
+            if (data.games && data.games.length > 0) {
+                data.games.forEach((game, index) => {
+                    manualGameCounter++;
+                    const gameHtml = `
+                        <div class="manual-game bg-slate-800 rounded-lg p-4" data-game-index="${manualGameCounter}">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-white font-semibold">Map ${manualGameCounter}</h4>
+                                <button type="button" onclick="removeManualGame(${manualGameCounter})" class="text-red-400 hover:text-red-300 text-sm">Remove</button>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-400 mb-1">Map Winner</label>
+                                    <select name="games[${manualGameCounter}][winning_team_id]" required class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                                        <option value="">Select winner...</option>
+                                        <option value="${currentMatchData.team1_id}" ${game.winning_team_id == currentMatchData.team1_id ? 'selected' : ''}>${currentMatchData.team1_name}</option>
+                                        <option value="${currentMatchData.team2_id}" ${game.winning_team_id == currentMatchData.team2_id ? 'selected' : ''}>${currentMatchData.team2_name}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('manualGamesContainer').insertAdjacentHTML('beforeend', gameHtml);
+                });
+            } else {
+                // No existing games, add one empty game
+                addManualGame();
+            }
+
+            document.getElementById('manualEntryModal').classList.remove('hidden');
+        } catch (error) {
+            console.error('Error loading match data:', error);
+            alert('Failed to load match data. Opening empty form...');
+            // Fall back to opening empty manual entry
+            openManualEntry(matchId);
+        }
+    };
+
+    // Debug: Check if functions are defined
+    console.log('Functions defined:');
+    console.log('- openFillResult:', typeof openFillResult);
+    console.log('- openManualEntry:', typeof openManualEntry);
+    console.log('- openNoShowModal:', typeof openNoShowModal);
+    console.log('- openEditMatch:', typeof openEditMatch);
+
+    // Debug: Test function availability on window
+    window.testButtons = function() {
+        console.log('Testing button functions...');
+        console.log('openFillResult exists:', typeof window.openFillResult !== 'undefined');
+        console.log('openManualEntry exists:', typeof window.openManualEntry !== 'undefined');
+        console.log('openNoShowModal exists:', typeof window.openNoShowModal !== 'undefined');
+        console.log('openEditMatch exists:', typeof window.openEditMatch !== 'undefined');
+    };
+
+    console.log('Run testButtons() in console to verify functions are available');
 </script>

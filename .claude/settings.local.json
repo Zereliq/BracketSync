@@ -15,7 +15,10 @@
       "Bash(del check_seeds.php backfill_seeds.php)",
       "Bash(php debug_matches.php:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "Bash(php -l:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

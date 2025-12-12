@@ -20,6 +20,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('homepage');
 
+// API routes for fetching mappool data
+Route::get('/api/mappools/{mappool}/maps', function ($mappoolId) {
+    $mappool = \App\Models\Mappool::with('maps.map')->findOrFail($mappoolId);
+    return response()->json($mappool->maps);
+});
+
 // Osu! authentication routes
 Route::get('/auth/osu/redirect', [OsuLoginController::class, 'redirectToProvider'])->name('auth.osu.redirect');
 Route::get('/auth/osu/callback', [OsuLoginController::class, 'handleProviderCallback'])->name('auth.osu.callback');
@@ -107,7 +113,10 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::post('/matches/update-round-settings', [TournamentController::class, 'updateRoundSettings'])->name('matches.update-round-settings');
         Route::post('/matches/fetch-osu-match', [TournamentController::class, 'fetchOsuMatch'])->name('matches.fetch-osu-match');
         Route::post('/matches/fill-result', [TournamentController::class, 'fillMatchResult'])->name('matches.fill-result');
-        Route::delete('/matches/games/{game}', [TournamentController::class, 'deleteGame'])->name('matches.games.delete');
+        Route::post('/matches/fill-result-manual', [TournamentController::class, 'fillMatchResultManual'])->name('matches.fill-result-manual');
+        Route::post('/matches/mark-no-show', [TournamentController::class, 'markAsNoShow'])->name('matches.mark-no-show');
+        Route::get('/matches/{match}/maps', [TournamentController::class, 'getMatchGames'])->name('matches.maps.get');
+        Route::delete('/matches/maps/{score}', [TournamentController::class, 'deleteGame'])->name('matches.maps.delete');
         Route::get('/mappools', [TournamentController::class, 'mappools'])->name('mappools');
         Route::get('/mappools/create', [\App\Http\Controllers\MappoolController::class, 'create'])->name('mappools.create');
         Route::post('/mappools', [\App\Http\Controllers\MappoolController::class, 'store'])->name('mappools.store');

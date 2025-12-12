@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
-use App\Models\Game;
 use App\Models\MatchModel;
 use App\Models\Score;
 use App\Models\Tournament;
@@ -1191,25 +1190,22 @@ class TournamentController extends Controller
             $oldWinnerId = $match->winner_team_id;
             $newWinnerId = $request->winner_id;
 
-            $match->games()->each(function ($game) {
-                $game->scores()->delete();
-                $game->delete();
-            });
+            // Delete existing scores
+            $match->scores()->delete();
 
             if ($request->has('games') && is_array($request->games)) {
                 foreach ($request->games as $index => $gameData) {
-                    $game = Game::create([
-                        'match_id' => $match->id,
-                        'mappool_map_id' => $gameData['mappool_map_id'],
-                        'order_in_match' => $index + 1,
-                        'winning_team_id' => $gameData['winning_team_id'],
-                    ]);
+                    $winningTeamId = $gameData['winning_team_id'];
 
+                    // Create a score record for each player in this map
                     foreach ($gameData['scores'] as $scoreData) {
                         Score::create([
-                            'game_id' => $game->id,
+                            'match_id' => $match->id,
+                            'map_number' => $index + 1,
+                            'mappool_map_id' => $gameData['mappool_map_id'],
                             'user_id' => $scoreData['user_id'],
                             'team_id' => $scoreData['team_id'] ?? null,
+                            'winning_team_id' => $winningTeamId,
                             'score' => $scoreData['score'],
                             'accuracy' => $scoreData['accuracy'] ?? null,
                             'combo' => $scoreData['combo'] ?? null,
@@ -1236,27 +1232,38 @@ class TournamentController extends Controller
     }
 
     /**
-     * Delete a game from a match.
+     * Delete a map from a match.
      */
-    public function deleteGame(Tournament $tournament, Game $game): mixed
+    public function deleteGame(Tournament $tournament, Score $score): mixed
     {
         $this->authorize('editMatches', $tournament);
 
-        $match = MatchModel::where('id', $game->match_id)
+        $match = MatchModel::where('id', $score->match_id)
             ->where('tournament_id', $tournament->id)
             ->firstOrFail();
 
-        DB::transaction(function () use ($game, $match, $tournament) {
-            $game->scores()->delete();
-            $game->delete();
+        DB::transaction(function () use ($score, $match, $tournament) {
+            $mapNumber = $score->map_number;
 
-            $remainingGames = $match->games()->orderBy('order_in_match')->get();
-            foreach ($remainingGames as $index => $remainingGame) {
-                $remainingGame->update(['order_in_match' => $index + 1]);
+            // Delete all scores for this map
+            $match->scores()->where('map_number', $mapNumber)->delete();
+
+            // Renumber remaining maps
+            $remainingMaps = $match->scores()
+                ->select('map_number')
+                ->distinct()
+                ->orderBy('map_number')
+                ->pluck('map_number');
+
+            foreach ($remainingMaps as $index => $oldMapNumber) {
+                if ($oldMapNumber > $mapNumber) {
+                    $match->scores()->where('map_number', $oldMapNumber)->update(['map_number' => $index + 1]);
+                }
             }
 
-            $team1Wins = $match->games()->where('winning_team_id', $match->team1_id)->count();
-            $team2Wins = $match->games()->where('winning_team_id', $match->team2_id)->count();
+            // Recalculate winner
+            $team1Wins = $match->scores()->where('winning_team_id', $match->team1_id)->distinct('map_number')->count('map_number');
+            $team2Wins = $match->scores()->where('winning_team_id', $match->team2_id)->distinct('map_number')->count('map_number');
 
             $winnerId = null;
             if ($match->best_of) {
@@ -1281,6 +1288,266 @@ class TournamentController extends Controller
                 if ($winnerId) {
                     $this->advanceWinnerToNextMatch($match, $tournament);
                 }
+            }
+        });
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Get match games for editing.
+     */
+    public function getMatchGames(Tournament $tournament, MatchModel $match): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        // Verify match belongs to this tournament
+        if ($match->tournament_id !== $tournament->id) {
+            abort(404);
+        }
+
+        // Get distinct maps by grouping scores by map_number
+        $maps = $match->scores()
+            ->select('map_number', 'winning_team_id', 'mappool_map_id')
+            ->distinct()
+            ->orderBy('map_number')
+            ->get()
+            ->groupBy('map_number')
+            ->map(function ($scores, $mapNumber) {
+                $firstScore = $scores->first();
+
+                return [
+                    'map_number' => $mapNumber,
+                    'winning_team_id' => $firstScore->winning_team_id,
+                    'mappool_map_id' => $firstScore->mappool_map_id,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'games' => $maps,
+            'winner_team_id' => $match->winner_team_id,
+            'status' => $match->status,
+        ]);
+    }
+
+    /**
+     * Mark a match as no-show and award the win to the opposing team/player.
+     */
+    public function markAsNoShow(Request $request, Tournament $tournament): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        $validated = $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'no_show_team_id' => 'required|integer',
+            'no_show_type' => 'required|in:no_show,disqualified',
+        ]);
+
+        $match = MatchModel::where('id', $validated['match_id'])
+            ->where('tournament_id', $tournament->id)
+            ->firstOrFail();
+
+        $noShowTeamId = (int) $validated['no_show_team_id'];
+
+        // Ensure both participants exist
+        if (! $match->team1_id || ! $match->team2_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Match does not have both participants assigned.',
+            ], 422);
+        }
+
+        // Validate the no-show team is actually in this match
+        if ($noShowTeamId !== $match->team1_id && $noShowTeamId !== $match->team2_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid team/player selected. The selected participant is not in this match.',
+            ], 422);
+        }
+
+        // Determine the winner (opposite of the no-show)
+        $winnerId = $noShowTeamId === $match->team1_id ? $match->team2_id : $match->team1_id;
+
+        // Ensure we have a valid winner
+        if (! $winnerId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not determine winner. Match participants may not be properly set.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($match, $winnerId, $noShowTeamId, $validated, $tournament) {
+            $oldWinnerId = $match->winner_team_id;
+
+            // Update match status and set winner
+            $match->update([
+                'status' => 'no_show',
+                'winner_team_id' => $winnerId,
+                'no_show_team_id' => $noShowTeamId,
+                'no_show_type' => $validated['no_show_type'],
+            ]);
+
+            // Remove old winner from next match if winner changed
+            if ($oldWinnerId && $oldWinnerId !== $winnerId) {
+                $this->removeFromNextMatch($match, $oldWinnerId, $tournament);
+            }
+
+            // Advance the new winner to next match
+            $this->advanceWinnerToNextMatch($match, $tournament);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Match marked as no-show and winner advanced.',
+        ]);
+    }
+
+    /**
+     * Fill match result manually without osu! match ID.
+     */
+    public function fillMatchResultManual(Request $request, Tournament $tournament): mixed
+    {
+        $this->authorize('editMatches', $tournament);
+
+        $validated = $request->validate([
+            'match_id' => 'required|exists:matches,id',
+            'games' => 'required|array|min:1',
+            'games.*.mappool_map_id' => 'sometimes|nullable|exists:mappool_maps,id',
+            'games.*.winning_team_id' => 'required|integer',
+            'games.*.scores' => 'sometimes|nullable|array',
+            'games.*.scores.*.user_id' => 'required|exists:users,id',
+            'games.*.scores.*.score' => 'nullable|integer|min:0',
+            'games.*.scores.*.accuracy' => 'nullable|numeric|min:0|max:100',
+            'games.*.scores.*.combo' => 'nullable|integer|min:0',
+            'games.*.scores.*.passed' => 'nullable|boolean',
+        ]);
+
+        $match = MatchModel::where('id', $validated['match_id'])
+            ->where('tournament_id', $tournament->id)
+            ->firstOrFail();
+
+        \Log::info('Manual entry received', [
+            'match_id' => $match->id,
+            'team1_id' => $match->team1_id,
+            'team2_id' => $match->team2_id,
+            'games_count' => count($validated['games']),
+            'games' => $validated['games'],
+        ]);
+
+        DB::transaction(function () use ($match, $validated, $tournament) {
+            // Delete existing scores
+            $match->scores()->delete();
+
+            // Create scores for each map
+            foreach ($validated['games'] as $index => $gameData) {
+                $winningTeamId = (int) $gameData['winning_team_id'];
+
+                \Log::info("Creating map {$index}", [
+                    'winning_team_id' => $winningTeamId,
+                    'scores' => $gameData['scores'] ?? null,
+                ]);
+
+                // If we have detailed scores, create one score per player
+                if (! empty($gameData['scores'])) {
+                    foreach ($gameData['scores'] as $scoreData) {
+                        if (empty($scoreData['user_id'])) {
+                            continue;
+                        }
+
+                        $user = User::find($scoreData['user_id']);
+                        $teamId = $tournament->is_team_tournament
+                            ? $user->teams()->where('tournament_id', $tournament->id)->first()?->id
+                            : $scoreData['user_id'];
+
+                        Score::create([
+                            'match_id' => $match->id,
+                            'map_number' => $index + 1,
+                            'mappool_map_id' => $gameData['mappool_map_id'] ?? null,
+                            'user_id' => $scoreData['user_id'],
+                            'team_id' => $teamId,
+                            'winning_team_id' => $winningTeamId,
+                            'score' => $scoreData['score'] ?? null,
+                            'accuracy' => $scoreData['accuracy'] ?? null,
+                            'combo' => $scoreData['combo'] ?? null,
+                            'passed' => $scoreData['passed'] ?? true,
+                        ]);
+                    }
+                } else {
+                    // No detailed scores - just create a single score record to track the map winner
+                    Score::create([
+                        'match_id' => $match->id,
+                        'map_number' => $index + 1,
+                        'mappool_map_id' => $gameData['mappool_map_id'] ?? null,
+                        'user_id' => null,
+                        'team_id' => $winningTeamId,
+                        'winning_team_id' => $winningTeamId,
+                        'score' => null,
+                        'accuracy' => null,
+                        'combo' => null,
+                        'passed' => true,
+                    ]);
+                }
+            }
+
+            // Refresh match to get the newly created scores
+            $match->refresh();
+
+            // Calculate winner based on map wins
+            $team1Wins = $match->scores()->where('winning_team_id', $match->team1_id)->distinct('map_number')->count('map_number');
+            $team2Wins = $match->scores()->where('winning_team_id', $match->team2_id)->distinct('map_number')->count('map_number');
+
+            \Log::info('Calculating winner', [
+                'team1_id' => $match->team1_id,
+                'team1_wins' => $team1Wins,
+                'team2_id' => $match->team2_id,
+                'team2_wins' => $team2Wins,
+                'best_of' => $match->best_of,
+            ]);
+
+            $winnerId = null;
+            if ($match->best_of) {
+                $winsNeeded = ceil($match->best_of / 2);
+                if ($team1Wins >= $winsNeeded) {
+                    $winnerId = $match->team1_id;
+                } elseif ($team2Wins >= $winsNeeded) {
+                    $winnerId = $match->team2_id;
+                }
+            } else {
+                // If no best_of, winner is whoever has more game wins
+                $winnerId = $team1Wins > $team2Wins ? $match->team1_id : ($team2Wins > $team1Wins ? $match->team2_id : null);
+            }
+
+            \Log::info('Winner determined', [
+                'winner_id' => $winnerId,
+                'old_winner_id' => $match->winner_team_id,
+            ]);
+
+            $oldWinnerId = $match->winner_team_id;
+
+            // Remove old winner from next match if winner changed
+            if ($oldWinnerId && $oldWinnerId !== $winnerId) {
+                \Log::info('Removing old winner from next match', ['old_winner_id' => $oldWinnerId]);
+                $this->removeFromNextMatch($match, $oldWinnerId, $tournament);
+            }
+
+            // Update match with winner and status
+            $match->update([
+                'winner_team_id' => $winnerId,
+                'status' => 'completed',
+            ]);
+
+            \Log::info('Match updated', [
+                'winner_team_id' => $winnerId,
+                'status' => 'completed',
+            ]);
+
+            // Advance winner to next match (always run if we have a winner)
+            if ($winnerId) {
+                \Log::info('Advancing winner to next match', ['winner_id' => $winnerId]);
+                $this->advanceWinnerToNextMatch($match, $tournament);
+            } else {
+                \Log::warning('No winner determined, not advancing to next match');
             }
         });
 

@@ -19,6 +19,8 @@ class MatchModel extends Model
         'team2_id',
         'team2_seed',
         'winner_team_id',
+        'no_show_team_id',
+        'no_show_type',
         'round',
         'stage',
         'best_of',
@@ -70,14 +72,19 @@ class MatchModel extends Model
         return $this->belongsTo(Team::class, 'winner_team_id');
     }
 
+    public function noShowTeam()
+    {
+        return $this->belongsTo(Team::class, 'no_show_team_id');
+    }
+
     public function referee()
     {
         return $this->belongsTo(User::class, 'referee_id');
     }
 
-    public function games()
+    public function scores()
     {
-        return $this->hasMany(Game::class, 'match_id');
+        return $this->hasMany(Score::class, 'match_id');
     }
 
     public function rolls()
