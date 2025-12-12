@@ -102,10 +102,12 @@ Route::middleware(['web', 'auth'])->prefix('dashboard')->name('dashboard.')->gro
         Route::post('/qualifiers/suggestions/{reservation}/referee-accept', [TournamentQualifiersController::class, 'refereeAcceptSuggestion'])->name('qualifiers.suggestions.referee-accept');
         Route::post('/qualifiers/suggestions/{reservation}/deny', [TournamentQualifiersController::class, 'denySuggestion'])->name('qualifiers.suggestions.deny');
         Route::get('/qualifiers/search-users', [TournamentQualifiersController::class, 'searchUsers'])->name('qualifiers.search-users');
+        Route::get('/settings', [TournamentController::class, 'settings'])->name('settings');
         Route::get('/matches', [TournamentController::class, 'matches'])->name('matches');
         Route::post('/matches/update-round-settings', [TournamentController::class, 'updateRoundSettings'])->name('matches.update-round-settings');
         Route::post('/matches/fetch-osu-match', [TournamentController::class, 'fetchOsuMatch'])->name('matches.fetch-osu-match');
         Route::post('/matches/fill-result', [TournamentController::class, 'fillMatchResult'])->name('matches.fill-result');
+        Route::delete('/matches/games/{game}', [TournamentController::class, 'deleteGame'])->name('matches.games.delete');
         Route::get('/mappools', [TournamentController::class, 'mappools'])->name('mappools');
         Route::get('/mappools/create', [\App\Http\Controllers\MappoolController::class, 'create'])->name('mappools.create');
         Route::post('/mappools', [\App\Http\Controllers\MappoolController::class, 'store'])->name('mappools.store');

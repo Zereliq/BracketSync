@@ -54,6 +54,9 @@
             @case('qualifiers')
                 @include('tournaments.tabs.qualifiers')
                 @break
+            @case('settings')
+                @include('tournaments.tabs.settings')
+                @break
             @case('matches')
                 @include('tournaments.tabs.matches')
                 @break
@@ -113,6 +116,9 @@
                     @break
                 @case('qualifiers')
                     @include('tournaments.tabs.qualifiers')
+                    @break
+                @case('settings')
+                    @include('tournaments.tabs.settings')
                     @break
                 @case('matches')
                     @include('tournaments.tabs.matches')

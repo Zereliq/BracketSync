@@ -19,86 +19,27 @@
 
 <div class="space-y-6">
     @if($canEdit)
-        {{-- Match Settings Overview --}}
-        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <div class="bg-gradient-to-r from-slate-800/50 to-slate-900/50 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        {{-- Quick Link to Settings --}}
+        <div class="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-xl p-4">
+            <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <svg class="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                    <h2 class="text-xl font-bold text-white">Match Settings by Round</h2>
+                    <div class="w-10 h-10 rounded-lg bg-pink-500/20 border border-pink-500/30 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold">Configure Match Settings</h3>
+                        <p class="text-xs text-slate-400">Set Best Of format and Mappools for each round</p>
+                    </div>
                 </div>
-                <button type="button" onclick="toggleSettings()" id="toggleSettingsBtn" class="text-slate-400 hover:text-white transition-colors">
-                    <svg id="toggleIcon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                <a href="{{ route('dashboard.tournaments.settings', $tournament) }}" class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2">
+                    <span>Go to Settings</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                     </svg>
-                </button>
-            </div>
-
-            <div id="settingsContent" class="hidden">
-                <form id="roundSettingsForm" class="p-6">
-                    @csrf
-                    <div class="space-y-4">
-                        @if(!empty($rounds))
-                            @foreach($rounds as $round)
-                                <div class="bg-slate-800/50 rounded-lg p-5 border border-slate-700 hover:border-slate-600 transition-colors">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="flex items-center space-x-3">
-                                            <div class="w-10 h-10 rounded-lg bg-pink-500/20 border border-pink-500/30 flex items-center justify-center">
-                                                <span class="text-pink-400 font-bold text-sm">R{{ $round['number'] }}</span>
-                                            </div>
-                                            <div>
-                                                <h3 class="text-white font-semibold">{{ $round['name'] }}</h3>
-                                                <p class="text-xs text-slate-400">{{ $round['count'] }} {{ Str::plural('match', $round['count']) }}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {{-- Best Of Setting --}}
-                                        <div>
-                                            <label for="round_{{ $round['number'] }}_best_of" class="block text-sm font-medium text-slate-300 mb-2">Best Of</label>
-                                            <select name="rounds[{{ $round['number'] }}][best_of]" id="round_{{ $round['number'] }}_best_of" class="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-pink-500 focus:border-transparent">
-                                                <option value="">Not Set</option>
-                                                <option value="1">BO1</option>
-                                                <option value="3">BO3</option>
-                                                <option value="5">BO5</option>
-                                                <option value="7">BO7</option>
-                                                <option value="9">BO9</option>
-                                                <option value="11">BO11</option>
-                                                <option value="13">BO13</option>
-                                            </select>
-                                        </div>
-
-                                        {{-- Mappool Assignment --}}
-                                        <div>
-                                            <label for="round_{{ $round['number'] }}_mappool" class="block text-sm font-medium text-slate-300 mb-2">Mappool</label>
-                                            <select name="rounds[{{ $round['number'] }}][mappool_id]" id="round_{{ $round['number'] }}_mappool" class="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-pink-500 focus:border-transparent">
-                                                <option value="">No Mappool</option>
-                                                @foreach($tournament->mappools ?? [] as $mappool)
-                                                    <option value="{{ $mappool->id }}">{{ $mappool->name }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endforeach
-                        @endif
-                    </div>
-
-                    <div class="flex items-center gap-3 pt-6 border-t border-slate-700 mt-6">
-                        <button type="submit" class="px-6 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            <span>Save All Settings</span>
-                        </button>
-                        <button type="button" onclick="loadCurrentSettings()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors">
-                            Reset to Current
-                        </button>
-                    </div>
-                </form>
+                </a>
             </div>
         </div>
     @endif
@@ -303,7 +244,7 @@
                     <div class="p-6">
                         {{-- Teams Display --}}
                         @php
-                            $hasMatchDetails = $match->scheduled_at || $duration || $gameCount > 0 || $match->mappool;
+                            $hasMatchDetails = $match->scheduled_at || $duration;
                             $hasRefSection = $match->referee || ($match->rolls && $match->rolls->count() > 0);
                         @endphp
                         <div class="grid grid-cols-1 md:grid-cols-7 gap-4 items-center {{ ($hasMatchDetails || $hasRefSection) ? 'mb-6' : '' }}">
@@ -413,7 +354,7 @@
 
                         {{-- Match Details Grid --}}
                         @if($hasMatchDetails)
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 {{ $hasRefSection ? 'mb-4' : '' }}">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 {{ $hasRefSection ? 'mb-4' : '' }}">
                             {{-- Scheduled Time --}}
                             @if($match->scheduled_at)
                                 <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800">
@@ -438,32 +379,6 @@
                                         <span class="text-xs font-medium">Duration</span>
                                     </div>
                                     <p class="text-white text-sm font-semibold">{{ floor($duration / 60) }}h {{ $duration % 60 }}m</p>
-                                </div>
-                            @endif
-
-                            {{-- Games Played --}}
-                            @if($gameCount > 0)
-                                <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800">
-                                    <div class="flex items-center space-x-2 text-slate-400 mb-1">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
-                                        </svg>
-                                        <span class="text-xs font-medium">Maps Played</span>
-                                    </div>
-                                    <p class="text-white text-sm font-semibold">{{ $gameCount }} {{ Str::plural('map', $gameCount) }}</p>
-                                </div>
-                            @endif
-
-                            {{-- Mappool --}}
-                            @if($match->mappool)
-                                <div class="bg-slate-800/30 rounded-lg p-3 border border-slate-800">
-                                    <div class="flex items-center space-x-2 text-slate-400 mb-1">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                        </svg>
-                                        <span class="text-xs font-medium">Mappool</span>
-                                    </div>
-                                    <p class="text-white text-sm font-semibold truncate">{{ $match->mappool->name }}</p>
                                 </div>
                             @endif
                             </div>
@@ -677,49 +592,6 @@
 <script>
     // Match data for JavaScript
     const matches = @json($matchesData);
-    const rounds = @json($rounds);
-
-    // Toggle settings panel
-    function toggleSettings() {
-        const content = document.getElementById('settingsContent');
-        const icon = document.getElementById('toggleIcon');
-
-        content.classList.toggle('hidden');
-        icon.classList.toggle('rotate-180');
-    }
-
-    // Load current settings into form
-    function loadCurrentSettings() {
-        // Group matches by round
-        const matchesByRound = {};
-        matches.forEach(match => {
-            if (!matchesByRound[match.round]) {
-                matchesByRound[match.round] = [];
-            }
-            matchesByRound[match.round].push(match);
-        });
-
-        // Set form values based on first match in each round
-        rounds.forEach(round => {
-            const roundNumber = round.number;
-            const roundMatches = matchesByRound[roundNumber] || [];
-
-            if (roundMatches.length > 0) {
-                const firstMatch = roundMatches[0];
-
-                const bestOfSelect = document.getElementById(`round_${roundNumber}_best_of`);
-                const mappoolSelect = document.getElementById(`round_${roundNumber}_mappool`);
-
-                if (bestOfSelect) bestOfSelect.value = firstMatch.best_of || '';
-                if (mappoolSelect) mappoolSelect.value = firstMatch.mappool_id || '';
-            }
-        });
-    }
-
-    // Load settings on page load
-    document.addEventListener('DOMContentLoaded', () => {
-        loadCurrentSettings();
-    });
 
     let currentMatchId = null;
     let currentMatchData = null;
@@ -924,32 +796,6 @@
 
         displayResults(currentMatchData);
     }
-
-    // Handle round settings form submission
-    document.getElementById('roundSettingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-
-        try {
-            const response = await fetch(`{{ route('dashboard.tournaments.matches.update-round-settings', $tournament) }}`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': formData.get('_token'),
-                    'Accept': 'application/json',
-                },
-                body: formData
-            });
-
-            if (response.ok) {
-                window.location.reload();
-            } else {
-                alert('Failed to update match settings');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('An error occurred');
-        }
-    });
 
     // Handle fill result form submission
     document.getElementById('fillResultForm').addEventListener('submit', async (e) => {
